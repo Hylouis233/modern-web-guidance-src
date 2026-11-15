@@ -1,17 +1,20 @@
 {
-  "name": "modern-web-guidance",
+  "name": "@hylouis233/modern-web-guidance",
   "displayName": "Modern Web Guidance",
-  "description": "Keep your agent up to date on the latest web best practices.",
+  "description": "Local-only Modern Web Guidance. Install and search stay on this machine.",
   "license": "Apache-2.0",
-  "version": "0.0.26",
-  "publisher": "GoogleChrome",
-  "homepage": "https://developer.chrome.com/docs/modern-web-guidance",
+  "version": "1.0.0",
+  "publisher": "Hong Liu",
+  "homepage": "https://github.com/Hylouis233/modern-web-guidance",
   "repository": {
     "type": "git",
-    "url": "https://github.com/GoogleChrome/modern-web-guidance-src.git"
+    "url": "https://github.com/Hylouis233/modern-web-guidance-src.git"
   },
   "bugs": {
-    "url": "https://github.com/GoogleChrome/modern-web-guidance-src/issues"
+    "url": "https://github.com/Hylouis233/modern-web-guidance-src/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "vscode": "^1.90.0",

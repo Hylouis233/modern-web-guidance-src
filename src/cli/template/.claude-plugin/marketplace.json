@@ -1,8 +1,8 @@
 {
-  "name": "googlechrome",
-  "description": "Modern web development guidance for AI coding agents.",
+  "name": "hylouis233",
+  "description": "Local-only Modern Web Guidance for AI coding agents. Not an official Google project.",
   "owner": {
-    "name": "Google Chrome"
+    "name": "Hong Liu"
   },
   "plugins": [
     {

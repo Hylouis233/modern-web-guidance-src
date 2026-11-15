@@ -68,17 +68,19 @@ test('processSkills rewrites modern-web-guidance@latest to @next when distTag is
       path.join(tmpRoot, 'skills/modern-web-guidance/SKILL.md'),
       'utf8',
     );
-    assert.ok(nextSkillMd.includes('Do not run `npx`'), 'Should keep the local-only search instruction');
+    assert.ok(nextSkillMd.includes('@hylouis233/modern-web-guidance@next'), 'Should retarget the scoped package to the next dist tag');
+    assert.ok(nextSkillMd.includes('Do not run `npx modern-web-guidance`'), 'Should keep the warning against Google\'s unscoped package');
     assert.ok(!nextSkillMd.includes('modern-web-guidance@latest'), 'Should not retain @latest in next build');
-    assert.ok(!nextSkillMd.includes('npx -y modern-web-guidance'), 'Should not tell agents to install the npm package');
+    assert.ok(!nextSkillMd.includes('npx -y modern-web-guidance'), 'Should not tell agents to install Google\'s npm package');
 
     processSkills(tmpRoot, 'latest');
     const latestSkillMd = await fs.readFile(
       path.join(tmpRoot, 'skills/modern-web-guidance/SKILL.md'),
       'utf8',
     );
-    assert.ok(latestSkillMd.includes('Do not run `npx`'), 'Should keep the local-only search instruction');
-    assert.ok(!latestSkillMd.includes('npx -y modern-web-guidance'), 'Should not tell agents to install the npm package');
+    assert.ok(latestSkillMd.includes('@hylouis233/modern-web-guidance@latest'), 'Should keep the scoped latest install command');
+    assert.ok(latestSkillMd.includes('Do not run `npx modern-web-guidance`'), 'Should keep the warning against Google\'s unscoped package');
+    assert.ok(!latestSkillMd.includes('npx -y modern-web-guidance'), 'Should not tell agents to install Google\'s npm package');
   } finally {
     await fs.rm(tmpRoot, { recursive: true, force: true });
   }

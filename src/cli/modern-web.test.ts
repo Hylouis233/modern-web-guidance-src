@@ -196,8 +196,9 @@ describe('modern-web CLI', () => {
       );
       assert.strictEqual(frozenClaudeRes.status, 0);
       assert.ok(frozenClaudeRes.stderr.includes('PROBLEM DETECTED: The modern-web-guidance skill is very out-of-date'));
-      assert.ok(frozenClaudeRes.stderr.includes('/plugin uninstall modern-web-guidance@claude-plugins-official'));
-      assert.ok(frozenClaudeRes.stderr.includes('/plugin install modern-web-guidance@googlechrome'));
+      assert.ok(frozenClaudeRes.stderr.includes('npx @hylouis233/modern-web-guidance@latest install'));
+      assert.ok(frozenClaudeRes.stderr.includes('pnpx @hylouis233/modern-web-guidance@latest install'));
+      assert.strictEqual(frozenClaudeRes.stderr.includes('modern-web-guidance@googlechrome'), false);
 
       const recentClaudeRes = runCLI(
         ['--skill-version', '2026_11_01-newsha', 'legacy-scan', '--help'],
@@ -280,14 +281,13 @@ describe('modern-web CLI', () => {
     }
   });
 
-  it('passes -y to npx when uninstalling skills', () => {
+  it('uninstalls local skills without invoking npx', () => {
     const tempBinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mwg-npx-test-'));
     const logFile = path.join(tempBinDir, 'npx-args.json');
-    const npxShim = path.join(tempBinDir, 'npx');
+    const npxShim = path.join(tempBinDir, 'npx.cmd');
     fs.writeFileSync(
       npxShim,
-      `#!/bin/sh\nnode -e 'require("node:fs").writeFileSync(process.argv[1], JSON.stringify(process.argv.slice(2)))' "${logFile}" "$@"\n`,
-      { mode: 0o755 }
+      `@echo off\r\nnode -e "require('node:fs').writeFileSync(process.argv[1], JSON.stringify(process.argv.slice(2)))" "${logFile}" %*\r\n`,
     );
 
     try {
@@ -295,16 +295,14 @@ describe('modern-web CLI', () => {
         encoding: 'utf8',
         env: {
           ...process.env,
-          PATH: `${tempBinDir}:${process.env.PATH}`,
+          PATH: `${tempBinDir};${process.env.PATH}`,
           NO_COLOR: '1',
           DISABLE_TELEMETRY: '1',
         },
       });
 
       assert.strictEqual(result.status, 0);
-      assert.ok(fs.existsSync(logFile), 'Dummy npx should have recorded arguments');
-      const args = JSON.parse(fs.readFileSync(logFile, 'utf8'));
-      assert.deepStrictEqual(args.slice(0, 3), ['-y', 'skills', 'remove']);
+      assert.strictEqual(fs.existsSync(logFile), false, 'Uninstall must not invoke npx');
     } finally {
       fs.rmSync(tempBinDir, { recursive: true, force: true });
     }

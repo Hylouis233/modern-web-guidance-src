@@ -64,7 +64,7 @@ function formatGateMessage({
   riskAdjective,
   explicitOptOut,
 }: GateMessageParams): string {
-  const fullCommand = `npx modern-web-guidance@latest ${cliCommand}`;
+  const fullCommand = `npx @hylouis233/modern-web-guidance@latest ${cliCommand}`;
   if (explicitOptOut) {
     return `> [!CAUTION]
 >

@@ -5,10 +5,9 @@ import { ensureNodeVersion } from "./node-version.ts";
 ensureNodeVersion();
 
 import { parseArgs } from "node:util";
-import { spawnSync } from "node:child_process";
-import { join, dirname, basename } from "node:path";
-import { existsSync, fstatSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { existsSync, fstatSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { retrieveUseCase, FeatureGateError } from "../rag/retrieve.ts";
 import { logToolResult } from "../rag/logger.ts";
 import { handleSetAllowOriginTrials, handleSetAllowVolatileFeatures } from "./set-allow-gate.ts";
@@ -19,8 +18,15 @@ import { getVersion } from "./version.ts";
 import { getSkillUpdateLevel, isFrozenClaudeMarketplaceVersion } from "./skill-version.ts";
 import { USE_CASES } from "../rag/guides.ts";
 import { determineAgent, KNOWN_AGENTS } from "./telemetry/detect-agent.ts";
-
-declare const __MWG_DIST_TAG__: string | undefined;
+import {
+  installLocalSkills,
+  listBundledSkills,
+  parseInstallArgs,
+  PUBLISHED_PACKAGE_NAME,
+  readPackageIdentity,
+  resolveBundledSkillsRoot,
+  uninstallLocalSkills,
+} from "./local-install.ts";
 
 const MAX_INLINE_STDOUT_BYTES = 9500;
 
@@ -71,15 +77,25 @@ Commands:
   legacy-scan [path] [options]  Analyze codebase for legacy web platform patterns
   set-allow-origin-trials   Opt in to experimental Origin Trial guidance
   set-allow-volatile-features Opt in to volatile feature guidance
-  install [options]         Install the modern-web-guidance skill
-  uninstall                 Uninstall the modern-web-guidance skill
-  update                    Update skills
+  install [options]         Copy skills into local agent folders
+  uninstall                 Remove skills this installer copied
+  update                    Copy the skills from this package again
+
+One-click install:
+  npx ${PUBLISHED_PACKAGE_NAME} install
+  pnpx ${PUBLISHED_PACKAGE_NAME} install
+  pnpm dlx ${PUBLISHED_PACKAGE_NAME} install
 
 Options:
   --skill-version <version> Internal use: version of the skill being executed
-  --choose                  Choose specific skills from the repository interactively
+  --choose                  Install every skill shipped in this package
+  --skill <name>            Install one skill (repeatable)
+  -g, --global              Write only under the user home directory
+  --project                 Write only in the current directory
   -h, --help                Show this help
   -v, --version             Show version
+
+Do not run the unscoped package modern-web-guidance. That name belongs to Google.
 `);
 }
 
@@ -234,47 +250,21 @@ async function main() {
     if (hasError) {
       process.exit(1);
     }
-  } else if (command === "install") {
+  } else if (command === "install" || command === "update") {
     const startTime = Date.now();
-    // We'll capture additional args and send them through to vercel skills CLI. (eg. --agent and -y)
-    const extraArgs = process.argv.slice(3).filter(a => a !== "--choose");
-    const distTag = typeof __MWG_DIST_TAG__ !== "undefined" ? __MWG_DIST_TAG__ : "latest";
-    const repoSource = distTag === "next"
-      ? "https://github.com/GoogleChrome/modern-web-guidance/tree/next"
-      : "GoogleChrome/modern-web-guidance";
-    const installArgs = `-y skills add ${repoSource} ${values.choose ? "" : "--skill modern-web-guidance"}`
-      .split(" ")
-      .filter(Boolean)
-      .concat(extraArgs);
-
-    const detectedAgent = determineAgent().agent?.name;
-    const env = detectedAgent ? { ...process.env, AI_AGENT: detectedAgent } : process.env;
-    const result = spawnSync("npx", installArgs, {
-      stdio: "inherit",
-      shell: process.platform === "win32",
-      env,
-    });
-
-    const success = !result.error && result.status === 0;
-    const commandType = values.choose ? CommandType.INSTALL_CHOOSE : CommandType.INSTALL;
-    await getLogger().logToolCommand(Date.now() - startTime, success, commandType);
-
-    if (result.error) {
-      console.error("Install failed:", result.error);
+    const commandType = command === "update"
+      ? CommandType.UPDATE
+      : (values.choose ? CommandType.INSTALL_CHOOSE : CommandType.INSTALL);
+    try {
+      const written = runLocalInstall(process.argv.slice(3));
+      console.log(`Installed ${written.length} local skill director${written.length === 1 ? "y" : "ies"}. Queries stay on this machine.`);
+      for (const dir of written) console.log(`  ${dir}`);
+      await getLogger().logToolCommand(Date.now() - startTime, true, commandType);
+      process.exit(0);
+    } catch (error) {
+      await getLogger().logToolCommand(Date.now() - startTime, false, commandType);
+      console.error(command === "update" ? "Update failed:" : "Install failed:", error instanceof Error ? error.message : error);
       process.exit(1);
-    }
-    process.exit(result.status ?? 0);
-  } else if (command === "update") {
-    const startTime = Date.now();
-    const skills = getOurCLIAdjacentSkillIDs();
-    const result = spawnSync("npx", ["-y", "skills", "update", ...skills], {
-      stdio: "inherit",
-      shell: process.platform === "win32",
-    });
-    const success = !result.error && result.status === 0;
-    await getLogger().logToolCommand(Date.now() - startTime, success, CommandType.UPDATE);
-    if (result.error) {
-      console.error("Update failed:", result.error);
     }
   } else if (command === "set-baseline") {
     const normalized = normalizeBaselineTarget(arg);
@@ -295,15 +285,21 @@ async function main() {
     process.exit(code);
   } else if (command === "uninstall") {
     const startTime = Date.now();
-    const skills = getOurCLIAdjacentSkillIDs();
-    const result = spawnSync("npx", ["-y", "skills", "remove", ...skills], {
-      stdio: "inherit",
-      shell: process.platform === "win32",
-    });
-    const success = !result.error && result.status === 0;
-    await getLogger().logToolCommand(Date.now() - startTime, success, CommandType.UNINSTALL);
-    if (result.error) {
-      console.error("Uninstall failed:", result.error);
+    try {
+      const home = process.env.MWG_INSTALL_HOME || homedir();
+      const removed = uninstallLocalSkills(home, process.cwd());
+      if (removed.length === 0) {
+        console.log("No locally installed skills from this package were found.");
+      } else {
+        console.log(`Removed ${removed.length} local skill director${removed.length === 1 ? "y" : "ies"}.`);
+        for (const dir of removed) console.log(`  ${dir}`);
+      }
+      await getLogger().logToolCommand(Date.now() - startTime, true, CommandType.UNINSTALL);
+      process.exit(0);
+    } catch (error) {
+      await getLogger().logToolCommand(Date.now() - startTime, false, CommandType.UNINSTALL);
+      console.error("Uninstall failed:", error instanceof Error ? error.message : error);
+      process.exit(1);
     }
   } else {
     console.error(`Unknown command: ${command}`);
@@ -324,17 +320,21 @@ function getCLISkillVersion(): string | null {
   }
 }
 
-function getOurCLIAdjacentSkillIDs(): string[] {
-  try {
-    const parentDir = dirname(import.meta.dirname);
-    const skillsPath = basename(parentDir) === 'skills'
-      ? parentDir
-      : join(dirname(parentDir), 'skills');
-    const listing = readdirSync(skillsPath);
-    return listing.filter(name => existsSync(join(skillsPath, name, 'SKILL.md')));
-  } catch (e) {
-    return [];
-  }
+function runLocalInstall(argv: string[]): string[] {
+  const fromDir = import.meta.dirname;
+  const skillsRoot = resolveBundledSkillsRoot(fromDir);
+  const available = listBundledSkills(skillsRoot);
+  const { scope, skillNames } = parseInstallArgs(argv, available);
+  const identity = readPackageIdentity(fromDir);
+  return installLocalSkills({
+    skillsRoot,
+    skillNames,
+    homeDir: process.env.MWG_INSTALL_HOME || homedir(),
+    projectDir: process.cwd(),
+    scope,
+    packageName: identity.name,
+    version: identity.version,
+  });
 }
 
 function maybeEmitUpdateMessage(callerSkillVersion: string|null): void {
@@ -354,10 +354,9 @@ function maybeEmitUpdateMessage(callerSkillVersion: string|null): void {
     if (isFrozenClaudeMarketplace) {
       console.error([
         '',
-        "If installed via Anthropic's unmaintained `claude-plugins-official` marketplace (abandoned at v0.0.194), `/plugin update` will not work — instruct the user to switch marketplaces:",
-        '  /plugin uninstall modern-web-guidance@claude-plugins-official',
-        '  /plugin marketplace add GoogleChrome/modern-web-guidance',
-        '  /plugin install modern-web-guidance@googlechrome',
+        "If installed via Anthropic's unmaintained `claude-plugins-official` marketplace (abandoned at v0.0.194), `/plugin update` will not reach this fork. Install the local package instead:",
+        '  npx @hylouis233/modern-web-guidance@latest install',
+        '  pnpx @hylouis233/modern-web-guidance@latest install',
         '',
       ].join('\n'));
     }
@@ -370,7 +369,8 @@ function maybeEmitUpdateMessage(callerSkillVersion: string|null): void {
     `Your version: ${callerSkillVersion}`,
     `Latest version: ${latestSkillVersion}`,
     '',
-    'See the docs for how to update: https://github.com/GoogleChrome/modern-web-guidance#updating',
+    `Update with: npx ${PUBLISHED_PACKAGE_NAME} update`,
+    `or: pnpx ${PUBLISHED_PACKAGE_NAME} update`,
   ].join('\n'));
 }
 

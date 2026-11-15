@@ -212,6 +212,10 @@ async function main(opts: { publishRoot: string, version?: string, failOnMissing
 
     fs.cpSync(path.join(rootDir, "src/cli/template"), publishRoot, { recursive: true });
     fs.copyFileSync(path.join(rootDir, "LICENSE"), path.join(publishRoot, "LICENSE"));
+    for (const noticeName of ["NOTICE", "PRIVACY.md"]) {
+      const noticePath = path.join(rootDir, noticeName);
+      if (fs.existsSync(noticePath)) fs.copyFileSync(noticePath, path.join(publishRoot, noticeName));
+    }
 
     const srcImgDir = path.join(rootDir, ".github/img");
     const destImgDir = path.join(publishRoot, ".github/img");

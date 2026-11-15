@@ -4,11 +4,11 @@
   "version": "0.0.26",
   "description": "Keep your coding agent up to date with the latest web best practices",
   "author": {
-    "name": "Google Chrome",
-    "url": "https://developer.chrome.com/"
+    "name": "Hong Liu",
+    "url": "https://github.com/Hylouis233"
   },
-  "homepage": "https://developer.chrome.com/docs/modern-web-guidance",
-  "repository": "https://github.com/GoogleChrome/modern-web-guidance",
+  "homepage": "https://github.com/Hylouis233/modern-web-guidance",
+  "repository": "https://github.com/Hylouis233/modern-web-guidance",
   "license": "Apache-2.0",
   "keywords": [
     "web",

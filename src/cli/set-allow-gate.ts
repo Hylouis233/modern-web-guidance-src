@@ -52,7 +52,7 @@ export async function handleSetAllowGate(
       : 'non-interactive stdin';
     console.error(
       `Error: \`${gate.cliCommand}\` must be run interactively by a human developer, not an AI agent (${reason}).\n` +
-      `Ask the developer to run \`npx modern-web-guidance@latest ${gate.cliCommand}\` in their own terminal.\n` +
+      `Ask the developer to run \`npx @hylouis233/modern-web-guidance@latest ${gate.cliCommand}\` in their own terminal.\n` +
       `If your IDE terminal sets agent environment variables, run the command in an external terminal.`
     );
     return 1;

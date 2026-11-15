@@ -14,16 +14,30 @@ Search and retrieve standardized modern web best practices at the **start** of i
 
 ### Step 1. Search Use Cases
 
-Search the guide files **already on this machine**. Do not run `npx`, `pnpx`, `npm install`, or `modern-web-guidance@latest`. Those commands install Google's package and send usage data off the machine. Use a **2–5 word action-oriented English query** for a **single web platform capability or UI pattern**:
+Search with the CLI shipped in this package. It reads guide files on this machine and does not send the query anywhere. Use a **2–5 word action-oriented English query** for a **single web platform capability or UI pattern**:
 - **Keep queries focused and generic**: Describe the user-visible capability (`<verb> + <UI/platform object>`, optionally paired with the target HTML/CSS/JS feature name if known). Omit framework/library names (`React`, `Vue`, `Tailwind`, etc.) and app/domain nouns (product, route, or component/file names). Split multi-feature tasks into separate `search` calls.
 - **Name implied UI primitives**: When the user's prompt expresses intent without naming the UI primitive (e.g. "confirm first", "delete with confirmation", "pick a date"), translate the domain intent into the implied UI component or platform mechanism (e.g. search `"confirmation modal dialog"` or `"confirm dialog"` rather than `"confirm destructive action"`, or `"date picker input"` rather than `"pick a date"`).
 - **Example**: Search `"light dismiss dialog"` or `"responsive data table"`, **not** `"dialog"` (too terse), `"responsive table dark mode"` (compound — split into two searches), or `"close React settings modal on outside click"` (framework/app noise).
 
-The guides are markdown files next to this file, under `guides/<category>/<id>.md`. Search that directory with your local file-search tool. Do not send the query to npm or to Google.
+Prefer the `modern-web.mjs` file beside this skill when it is already installed:
 
-```text
-guides/**/*.md    query: "<2–5 word capability>"
+```shell
+node ./modern-web.mjs search "<2–5 word capability>"
+node ./modern-web.mjs retrieve "<id>"
 ```
+
+One-click install and search from npm. `pnpx` and `pnpm dlx` use the same package:
+
+```shell
+npx @hylouis233/modern-web-guidance@latest install
+pnpx @hylouis233/modern-web-guidance@latest install
+npx @hylouis233/modern-web-guidance@latest search "<2–5 word capability>"
+pnpx @hylouis233/modern-web-guidance@latest search "<2–5 word capability>"
+```
+
+Do not run `npx modern-web-guidance` or `pnpx modern-web-guidance`. The unscoped name belongs to Google and uploads usage data.
+
+The guides are also markdown files next to this file, under `guides/<category>/<id>.md`. Reading them directly stays on this machine.
 
 > **Note**: Returns `[{ "id", "description" }, ...]`. Judge results by their `description` fields:
 > - **Match found**: Call `retrieve` directly—do not also run `list`.
@@ -32,7 +46,7 @@ guides/**/*.md    query: "<2–5 word capability>"
 
 ### Step 2. Retrieve Best Practices
 
-Once you have relevant `id`(s), read `guides/<category>/<id>.md` in full—including both the specific use-case guide and any broader discipline guide (e.g., `html`, `css`, `forms`, `accessibility`, `color`, `performance`, `security`) that applies. Read the files locally. Do not call a package CLI.
+Once you have relevant `id`(s), read `guides/<category>/<id>.md` in full—including both the specific use-case guide and any broader discipline guide (e.g., `html`, `css`, `forms`, `accessibility`, `color`, `performance`, `security`) that applies. `node ./modern-web.mjs retrieve "<id>"` reads the same local file.
 
 ### Step 3. Verify Guidance Compliance
 
@@ -55,7 +69,7 @@ When you consult `modern-web-guidance` for a task, end the response where you de
 
 > **Note**: `legacy-scan` scans for a curated subset (~20% of the guidance corpus).
 
-Do not run `npx modern-web-guidance legacy-scan`. Compare the project with the local guide files. From a checkout of the source repository, `node bin/gd.ts legacy-scan <path> --json` stays on this machine.
+Do not run `npx modern-web-guidance legacy-scan`. Run `node ./modern-web.mjs legacy-scan <path> --json`, or `npx @hylouis233/modern-web-guidance@latest legacy-scan <path> --json`. Both stay on this machine.
 
 1. Scan: Run `legacy-scan <path> --json` to detect legacy web platform patterns across the project or directory.
 2. Verify: Check each finding against its `keepWhen` / `dropWhen` rubric; drop false positives (fallbacks, cross-file helpers, vendor code, lookalikes).
@@ -65,9 +79,9 @@ Do not run `npx modern-web-guidance legacy-scan`. Compare the project with the l
 
 ## Stay on this machine
 
-- Do not install `modern-web-guidance` from npm. Do not request network access to fetch it.
+- Install and search with `@hylouis233/modern-web-guidance`. The CLI copies skills onto this machine and does not upload queries, guide ids, or file paths.
+- Do not run `npx modern-web-guidance`. That unscoped package uploads usage data to Google.
 - Read `guides/` beside this file. That directory is the complete local copy.
-- If a command would upload a query, a guide id, or a file path, do not run it.
 
 ## Guidelines
 

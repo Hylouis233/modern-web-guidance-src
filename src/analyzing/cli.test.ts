@@ -228,7 +228,7 @@ describe('runAnalyzeCli', () => {
 
       assert.match(
         res.output,
-        /Retrieve a guide: npx modern-web-guidance retrieve <guide-id>/,
+        /Retrieve a guide: npx @hylouis233\/modern-web-guidance retrieve <guide-id>/,
       );
     });
   });
@@ -256,7 +256,7 @@ describe('runAnalyzeCli', () => {
 
       const guide = parsed.guides.find((g) => g.guideId === 'autofill-sign-in-form');
       assert.ok(guide, 'Expected autofill-sign-in-form guide in JSON output');
-      assert.equal(guide.retrieveCommand, 'npx modern-web-guidance retrieve autofill-sign-in-form');
+      assert.equal(guide.retrieveCommand, 'npx @hylouis233/modern-web-guidance retrieve autofill-sign-in-form');
       assert.equal(guide.count, 1);
       assert.equal(guide.rules.length, 1);
 

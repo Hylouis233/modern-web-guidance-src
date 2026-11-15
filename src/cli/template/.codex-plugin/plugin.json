@@ -3,11 +3,11 @@
   "version": "0.0.26",
   "description": "Keep your coding agent up to date with the latest web best practices",
   "author": {
-    "name": "Google Chrome",
-    "url": "https://developer.chrome.com"
+    "name": "Hong Liu",
+    "url": "https://github.com/Hylouis233"
   },
-  "homepage": "https://developer.chrome.com/docs/modern-web-guidance",
-  "repository": "https://github.com/GoogleChrome/modern-web-guidance",
+  "homepage": "https://github.com/Hylouis233/modern-web-guidance",
+  "repository": "https://github.com/Hylouis233/modern-web-guidance",
   "license": "Apache-2.0",
   "keywords": [
     "web",
@@ -20,18 +20,18 @@
   "interface": {
     "displayName": "Modern Web Guidance",
     "shortDescription": "Web platform expertise",
-    "longDescription": "Modern Web Guidance is an agent skill and CLI tool designed to help AI coding agents build web applications using modern, secure, and high-performance APIs rather than outdated workarounds. Stewarded by the Google Chrome, Microsoft Edge, Mozilla Firefox, and MDN teams, it injects expert-curated web platform best practices directly into an agent's context window to prevent the generation of bloated, legacy code.",
-    "developerName": "Google Chrome",
+    "longDescription": "Local-only fork of Modern Web Guidance for AI coding agents. Search and install stay on this machine. Originally stewarded by the Google Chrome, Microsoft Edge, Mozilla Firefox, and MDN teams. This package is not an official Google project.",
+    "developerName": "Hong Liu",
     "category": "Developer Tools",
     "composerIcon": "./assets/logo.png",
     "logo": "./assets/logo.png",
     "capabilities": [
       "Read"
     ],
-    "websiteURL": "https://developer.chrome.com/docs/modern-web-guidance",
-    "supportURL": "https://github.com/GoogleChrome/modern-web-guidance-src/issues",
-    "privacyPolicyURL": "https://policies.google.com/privacy",
-    "termsOfServiceURL": "https://policies.google.com/terms",
+    "websiteURL": "https://github.com/Hylouis233/modern-web-guidance",
+    "supportURL": "https://github.com/Hylouis233/modern-web-guidance-src/issues",
+    "privacyPolicyURL": "https://github.com/Hylouis233/modern-web-guidance/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/Hylouis233/modern-web-guidance/blob/main/LICENSE",
     "defaultPrompt": [
       "Audit this project for modern web best practices and modernization opportunities",
       "What is the recommended modern way to implement responsive dialogs and popovers?"

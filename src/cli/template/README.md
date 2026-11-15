@@ -4,34 +4,30 @@
 
 # Modern Web Guidance
 
-> Local-only privacy fork by Hong Liu (Hylouis233). Do not install `modern-web-guidance` from npm. Guide text stays under `skills/`. This is not an official Google project. Original work: Google Chrome and contributors, Apache-2.0 and CC-BY 4.0.
+> Local-only privacy fork by Hong Liu (Hylouis233). Install `@hylouis233/modern-web-guidance` with npx or pnpx. Search queries stay on this machine. Do not install the unscoped npm package `modern-web-guidance`; that name belongs to Google. This is not an official Google project. Original work: Google Chrome and contributors, Apache-2.0 and CC-BY 4.0.
 
 [Modern Web Guidance](https://developer.chrome.com/docs/modern-web-guidance) is a set of skills that embed web platform expertise, best practices, and browser compatibility data directly into your coding agents. It helps to steer your coding agents away from legacy patterns, and instead toward solutions that harness the power and capabilities of the modern web platform.
 
 *Stewarded by the Google Chrome, Microsoft Edge, Mozilla Firefox, and MDN teams, alongside the web development community.*
 
-[Documentation](https://developer.chrome.com/docs/modern-web-guidance) · [Eval Dashboard](https://googlechrome.github.io/modern-web-guidance-src/) · [Source Code](https://github.com/GoogleChrome/modern-web-guidance-src) · [Report an Issue](https://github.com/GoogleChrome/modern-web-guidance-src/issues)
+[Documentation](https://developer.chrome.com/docs/modern-web-guidance) · [Source Code](https://github.com/Hylouis233/modern-web-guidance-src) · [Report an Issue](https://github.com/Hylouis233/modern-web-guidance-src/issues)
 
 ## <img src="https://github.com/GoogleChrome/modern-web-guidance/raw/main/.github/img/terminal.svg" width="24" height="24" style="vertical-align: middle; margin-right: 4px;"> Quickstart
 
-```text
-skills/modern-web-guidance
-skills/chrome-extensions
+```shell
+npx @hylouis233/modern-web-guidance@latest install
+pnpx @hylouis233/modern-web-guidance@latest install
+pnpm dlx @hylouis233/modern-web-guidance@latest install
 ```
 
-Point your coding agent at those directories. Do not install the npm package `modern-web-guidance`. See [Alternative Installation Methods](#-alternative-installation-methods) below.
+`pnpx` is pnpm's one-shot runner, the same package as `npx`. Install copies the skills into local agent folders. It does not send a query or a file path anywhere.
 
-#### Try it out (without installing)
+#### Try it out
 
 ```shell
-# Search for relevant guides
-npx modern-web-guidance@latest search "animate a dialog modal backdrop"
-
-# Retrieve a guide by ID
-npx modern-web-guidance@latest retrieve "animate-to-from-top-layer"
-
-# Scan a codebase for legacy patterns to modernize
-npx modern-web-guidance@latest legacy-scan .
+npx @hylouis233/modern-web-guidance@latest search "animate a dialog modal backdrop"
+pnpx @hylouis233/modern-web-guidance@latest retrieve "animate-to-from-top-layer"
+pnpm dlx @hylouis233/modern-web-guidance@latest legacy-scan .
 ```
 
 ## <img src="https://github.com/GoogleChrome/modern-web-guidance/raw/main/.github/img/lightbulb.svg" width="24" height="24" style="vertical-align: middle; margin-right: 4px;"> Why?
@@ -82,7 +78,7 @@ We cover the past several years of the web platform's new features, all the way 
   </tr>
 </table>
 
-_View an example:_ [the `navigation-drawer` guide](https://github.com/GoogleChrome/modern-web-guidance/blob/main/skills/modern-web-guidance/guides/ui-components/navigation-drawer.md).
+_View an example:_ [the `navigation-drawer` guide](https://github.com/Hylouis233/modern-web-guidance/blob/main/skills/modern-web-guidance/guides/ui-components/navigation-drawer.md).
 
 <!-- INJECT_SKILL_COVERAGE_START -->
 <!-- INJECT_SKILL_COVERAGE_END -->
@@ -101,8 +97,8 @@ Configure Origin Trial and volatile feature opt-ins for a repository with an opt
 
 | CLI Command | `.mwgrc` Key | Effect |
 | :--- | :--- | :--- |
-| `npx modern-web-guidance@latest set-allow-origin-trials` | `"allowOriginTrials": true` | Unlocks guides for experimental Origin Trial APIs. |
-| `npx modern-web-guidance@latest set-allow-volatile-features` | `"allowVolatileFeatures": true` | Unlocks guides for volatile single-engine features. |
+| `npx @hylouis233/modern-web-guidance@latest set-allow-origin-trials` | `"allowOriginTrials": true` | Unlocks guides for experimental Origin Trial APIs. |
+| `npx @hylouis233/modern-web-guidance@latest set-allow-volatile-features` | `"allowVolatileFeatures": true` | Unlocks guides for volatile single-engine features. |
 
 ## <img src="https://github.com/GoogleChrome/modern-web-guidance/raw/main/.github/img/cpu.svg" width="24" height="24" style="vertical-align: middle; margin-right: 4px;"> How It Works
 
@@ -120,7 +116,7 @@ Configure Origin Trial and volatile feature opt-ins for a repository with an opt
 <summary><b>Vercel Skills CLI</b> (aka <code>npx skills</code>)</summary>
 
 ```shell
-npx skills add GoogleChrome/modern-web-guidance
+npx @hylouis233/modern-web-guidance@latest install
 ```
 </details>
 
@@ -128,7 +124,7 @@ npx skills add GoogleChrome/modern-web-guidance
 <summary><b>GitHub CLI</b></summary>
 
 ```shell
-gh skill install GoogleChrome/modern-web-guidance
+gh skill install Hylouis233/modern-web-guidance
 ```
 </details>
 
@@ -136,7 +132,7 @@ gh skill install GoogleChrome/modern-web-guidance
 <summary><b>Google Antigravity</b></summary>
 
 ```shell
-agy plugin install https://github.com/GoogleChrome/modern-web-guidance
+agy plugin install https://github.com/Hylouis233/modern-web-guidance
 ```
 </details>
 
@@ -144,8 +140,8 @@ agy plugin install https://github.com/GoogleChrome/modern-web-guidance
 <summary><b>GitHub Copilot CLI</b></summary>
 
 ```shell
-/plugin marketplace add GoogleChrome/modern-web-guidance
-/plugin install modern-web-guidance@googlechrome
+/plugin marketplace add Hylouis233/modern-web-guidance
+/plugin install modern-web-guidance@hylouis233
 ```
 </details>
 
@@ -153,9 +149,8 @@ agy plugin install https://github.com/GoogleChrome/modern-web-guidance
 <summary><b>Claude Code Plugin</b></summary>
 
 ```shell
-/plugin marketplace add GoogleChrome/modern-web-guidance
-/plugin install modern-web-guidance@googlechrome
-/plugin  # Select GoogleChrome marketplace, press enter, enable AutoUpdate
+/plugin marketplace add Hylouis233/modern-web-guidance
+/plugin install modern-web-guidance@hylouis233
 /reload-plugins
 ```
 </details>
@@ -164,7 +159,7 @@ agy plugin install https://github.com/GoogleChrome/modern-web-guidance
 <summary><b>Grok Build CLI</b></summary>
 
 ```shell
-grok plugin install https://github.com/GoogleChrome/modern-web-guidance --trust
+grok plugin install https://github.com/Hylouis233/modern-web-guidance --trust
 ```
 </details>
 
@@ -172,7 +167,7 @@ grok plugin install https://github.com/GoogleChrome/modern-web-guidance --trust
 <summary><b>Kimi Code</b></summary>
 
 ```shell
-/plugins install https://github.com/GoogleChrome/modern-web-guidance
+/plugins install https://github.com/Hylouis233/modern-web-guidance
 ```
 </details>
 
@@ -180,26 +175,23 @@ grok plugin install https://github.com/GoogleChrome/modern-web-guidance --trust
 <summary><b>OpenAI Codex</b></summary>
 
 ```shell
-codex plugin marketplace add GoogleChrome/modern-web-guidance
-codex plugin add modern-web-guidance@googlechrome
+codex plugin marketplace add Hylouis233/modern-web-guidance
+codex plugin add modern-web-guidance@hylouis233
 ```
 </details>
 
 ## <img src="https://github.com/GoogleChrome/modern-web-guidance/raw/main/.github/img/refresh-cw.svg" width="24" height="24" style="vertical-align: middle; margin-right: 4px;"> Updating
 
-If you installed the skill using `npx modern-web-guidance@latest install`, you can update with: `npx modern-web-guidance@latest update`.
+If you installed the skill using `npx @hylouis233/modern-web-guidance@latest install`, you can update with: `npx @hylouis233/modern-web-guidance@latest update`.
 
 <details>
 <summary><b>Claude Code (if installed via <code>claude-plugins-official</code>)</b></summary>
 
-Anthropic stopped updating third-party plugins in their built-in `claude-plugins-official` marketplace on Oct 12, stranding installs at `v0.0.194` ([details](https://github.com/GoogleChrome/modern-web-guidance-src/issues/3533)). Switch to the `googlechrome` marketplace to get updates:
+Anthropic stopped updating third-party plugins in their built-in `claude-plugins-official` marketplace on Oct 12, stranding installs at `v0.0.194` ([details](https://github.com/GoogleChrome/modern-web-guidance-src/issues/3533)). Install this fork instead:
 
 ```shell
-/plugin uninstall modern-web-guidance@claude-plugins-official
-/plugin marketplace add GoogleChrome/modern-web-guidance
-/plugin install modern-web-guidance@googlechrome
-/plugin  # Select GoogleChrome marketplace, press enter, enable AutoUpdate
-/reload-plugins
+npx @hylouis233/modern-web-guidance@latest install
+pnpx @hylouis233/modern-web-guidance@latest install
 ```
 </details>
 
@@ -230,7 +222,7 @@ We developed a robust eval harness to ensure that the content is **empirically p
 
 ### Recent eval results snapshot
 
-Explore full per-agent and per-guide breakdowns on the **[Eval Dashboard](https://googlechrome.github.io/modern-web-guidance-src/)**.
+Eval results stay in the local archive produced by `pnpm archive-evals`. This fork does not publish them to GitHub Pages.
 
 <!-- INJECT_EVAL_RESULTS_START -->
 <!-- INJECT_EVAL_RESULTS_END -->
@@ -241,7 +233,7 @@ Explore full per-agent and per-guide breakdowns on the **[Eval Dashboard](https:
 You can customize which skill packs are installed using the `--choose` flag:
 
 ```shell
-npx modern-web-guidance@latest install --choose
+npx @hylouis233/modern-web-guidance@latest install --choose
 ```
 
 * **`modern-web-guidance`** (~205 tokens): Comprehensive guidance on modern browser APIs, layouts, and performance.
@@ -251,11 +243,11 @@ npx modern-web-guidance@latest install --choose
 
 This fork does not collect usage data and does not send it to Google or anywhere else. Search queries, guide ids, install counts, and evaluation files stay on this machine. There is no opt-in. See [PRIVACY.md](PRIVACY.md).
 
-Do not run `npx modern-web-guidance@latest`. That command installs Google's package, which reports usage to Google.
+Do not run the unscoped `npx modern-web-guidance`. That name belongs to Google and reports usage to Google. Use `npx @hylouis233/modern-web-guidance` or `pnpx @hylouis233/modern-web-guidance`.
 
 ## <img src="https://github.com/GoogleChrome/modern-web-guidance/raw/main/.github/img/users.svg" width="24" height="24" style="vertical-align: middle; margin-right: 4px;"> Contributors
 
-Found a bug, outdated pattern, or missing web platform feature? [Open an issue](https://github.com/GoogleChrome/modern-web-guidance-src/issues) or see [`CONTRIBUTING.md`](https://github.com/GoogleChrome/modern-web-guidance-src/blob/main/CONTRIBUTING.md) in the [source repository (`GoogleChrome/modern-web-guidance-src`)](https://github.com/GoogleChrome/modern-web-guidance-src).
+Found a bug, outdated pattern, or missing web platform feature? [Open an issue](https://github.com/Hylouis233/modern-web-guidance-src/issues) or see [`CONTRIBUTING.md`](https://github.com/Hylouis233/modern-web-guidance-src/blob/main/CONTRIBUTING.md) in the [source repository (`Hylouis233/modern-web-guidance-src`)](https://github.com/Hylouis233/modern-web-guidance-src).
 
 Huge thanks to everyone who has contributed!
 

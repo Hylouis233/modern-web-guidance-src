@@ -343,7 +343,7 @@ function formatChromestatusSentence(originTrials: readonly OriginTrialMetadata[]
 function formatGateCautionAside(gateKey: FeatureGateId, bodyHtml: string): string {
   const gate = FEATURE_GATES[gateKey];
   const heading = gate.headingLabel.charAt(0).toUpperCase() + gate.headingLabel.slice(1);
-  const command = `npx modern-web-guidance@latest ${gate.cliCommand}`;
+  const command = `npx @hylouis233/modern-web-guidance@latest ${gate.cliCommand}`;
   return [
     '<aside class="caution">',
     `  <p><b>Caution: ${escapeHtml(heading)} require explicit project opt-in.</b></p>`,

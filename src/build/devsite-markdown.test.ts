@@ -369,7 +369,7 @@ describe('formatDevsiteGateNotices', () => {
     assert.ok(notice.includes('<b>Caution: Origin Trial features require explicit project opt-in.</b>'));
     assert.ok(notice.includes('<a href="https://chromestatus.com/feature/111">ChromeStatus entry</a>'));
     assert.strictEqual(notice.match(/chromestatus\.com\/feature\/111/g)?.length, 1);
-    assert.ok(notice.includes('<pre class="prettyprint lang-shell">npx modern-web-guidance@latest set-allow-origin-trials</pre>'));
+    assert.ok(notice.includes('<pre class="prettyprint lang-shell">npx @hylouis233/modern-web-guidance@latest set-allow-origin-trials</pre>'));
     assert.ok(notice.includes('<code>{"allowOriginTrials": true}</code>'));
   });
 
@@ -403,9 +403,9 @@ describe('formatDevsiteGateNotices', () => {
     });
 
     assert.strictEqual(notices.length, 2);
-    assert.ok(notices[0].includes('npx modern-web-guidance@latest set-allow-origin-trials'));
+    assert.ok(notices[0].includes('npx @hylouis233/modern-web-guidance@latest set-allow-origin-trials'));
     assert.ok(notices[1].includes('<b>Caution: Volatile features require explicit project opt-in.</b>'));
-    assert.ok(notices[1].includes('<pre class="prettyprint lang-shell">npx modern-web-guidance@latest set-allow-volatile-features</pre>'));
+    assert.ok(notices[1].includes('<pre class="prettyprint lang-shell">npx @hylouis233/modern-web-guidance@latest set-allow-volatile-features</pre>'));
     assert.ok(notices[1].includes('<code>{"allowVolatileFeatures": true}</code>'));
   });
 });

@@ -225,7 +225,7 @@ export function formatHumanReadable(
   }
 
   lines.push(
-    `Retrieve a guide: ${fmt('cyan', 'npx modern-web-guidance retrieve <guide-id>')}`,
+    `Retrieve a guide: ${fmt('cyan', 'npx @hylouis233/modern-web-guidance retrieve <guide-id>')}`,
   );
 
   return `${lines.join('\n').trimEnd()}\n`;
@@ -280,7 +280,7 @@ function groupFindingsByGuide(
 
       return {
         guideId: gid,
-        retrieveCommand: `npx modern-web-guidance retrieve ${gid}`,
+        retrieveCommand: `npx @hylouis233/modern-web-guidance retrieve ${gid}`,
         count: guideFindings.length,
         rules,
       };

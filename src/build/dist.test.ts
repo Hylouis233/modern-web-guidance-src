@@ -28,8 +28,8 @@ const STAGING_DIR = path.join(ROOT_DIR, "dist/skills-cli");
 test('Claude Plugin Config in Dist', async () => {
   const marketplaceJsonRaw = await fs.readFile(path.join(STAGING_DIR, '.claude-plugin/marketplace.json'), 'utf8');
   const marketplaceJson = JSON.parse(marketplaceJsonRaw);
-  assert.strictEqual(marketplaceJson.name, 'googlechrome', 'marketplace.json name should be googlechrome');
-  assert.strictEqual(marketplaceJson.owner.name, 'Google Chrome', 'marketplace.json owner should be Google Chrome');
+  assert.strictEqual(marketplaceJson.name, 'hylouis233', 'marketplace.json name should be hylouis233');
+  assert.strictEqual(marketplaceJson.owner.name, 'Hong Liu', 'marketplace.json owner should be Hong Liu');
   
   assert.ok(Array.isArray(marketplaceJson.plugins) && marketplaceJson.plugins.length > 0, 'should have plugins');
   assert.strictEqual(marketplaceJson.plugins[0].name, 'modern-web-guidance');
@@ -38,14 +38,14 @@ test('Claude Plugin Config in Dist', async () => {
   const pluginJsonRaw = await fs.readFile(path.join(STAGING_DIR, '.claude-plugin/plugin.json'), 'utf8');
   const pluginJson = JSON.parse(pluginJsonRaw);
   assert.strictEqual(pluginJson.name, 'modern-web-guidance', 'plugin.json name should match');
-  assert.strictEqual(pluginJson.author.name, 'Google Chrome', 'plugin.json author should be Google Chrome');
+  assert.strictEqual(pluginJson.author.name, 'Hong Liu', 'plugin.json author should be Hong Liu');
 });
 
 test('Grok Plugin Config in Dist', async () => {
   const marketplaceJsonRaw = await fs.readFile(path.join(STAGING_DIR, '.grok-plugin/marketplace.json'), 'utf8');
   const marketplaceJson = JSON.parse(marketplaceJsonRaw);
-  assert.strictEqual(marketplaceJson.name, 'googlechrome', 'marketplace.json name should be googlechrome');
-  assert.strictEqual(marketplaceJson.owner.name, 'Google Chrome', 'marketplace.json owner should be Google Chrome');
+  assert.strictEqual(marketplaceJson.name, 'hylouis233', 'marketplace.json name should be hylouis233');
+  assert.strictEqual(marketplaceJson.owner.name, 'Hong Liu', 'marketplace.json owner should be Hong Liu');
   
   assert.ok(Array.isArray(marketplaceJson.plugins) && marketplaceJson.plugins.length > 0, 'should have plugins');
   assert.strictEqual(marketplaceJson.plugins[0].name, 'modern-web-guidance');
@@ -56,7 +56,7 @@ test('Codex Plugin Config in Dist', async () => {
   const pluginJsonRaw = await fs.readFile(path.join(STAGING_DIR, '.codex-plugin/plugin.json'), 'utf8');
   const pluginJson = JSON.parse(pluginJsonRaw);
   assert.strictEqual(pluginJson.name, 'modern-web-guidance', 'plugin.json name should match');
-  assert.strictEqual(pluginJson.author.name, 'Google Chrome', 'plugin.json author should be Google Chrome');
+  assert.strictEqual(pluginJson.author.name, 'Hong Liu', 'plugin.json author should be Hong Liu');
   assert.strictEqual(pluginJson.skills, './skills/', 'plugin.json skills should point to ./skills/');
 
   // updateVersionsInDir must keep the manifest version in sync with the rest of the distribution
@@ -101,8 +101,8 @@ test('Codex Plugin Config in Dist', async () => {
   // Codex Marketplace config validation
   const marketplaceJsonRaw = await fs.readFile(path.join(STAGING_DIR, '.agents/plugins/marketplace.json'), 'utf8');
   const marketplaceJson = JSON.parse(marketplaceJsonRaw);
-  assert.strictEqual(marketplaceJson.name, 'googlechrome', 'marketplace.json name should be googlechrome');
-  assert.strictEqual(marketplaceJson.interface.displayName, 'Google Chrome', 'marketplace.json displayName should match');
+  assert.strictEqual(marketplaceJson.name, 'hylouis233', 'marketplace.json name should be hylouis233');
+  assert.strictEqual(marketplaceJson.interface.displayName, 'Hong Liu', 'marketplace.json displayName should match');
   assert.ok(Array.isArray(marketplaceJson.plugins) && marketplaceJson.plugins.length > 0, 'marketplace must declare plugins');
   assert.strictEqual(marketplaceJson.plugins[0].name, 'modern-web-guidance');
   assert.strictEqual(marketplaceJson.plugins[0].category, 'Developer Tools');
@@ -118,11 +118,12 @@ test('Codex Plugin Config in Dist', async () => {
 test('Gemini and VS Code manifests', async () => {
   const geminiJson = JSON.parse(await fs.readFile(path.join(STAGING_DIR, 'gemini-extension.json'), 'utf8'));
   assert.strictEqual(geminiJson.name, 'modern-web-guidance');
-  assert.strictEqual(geminiJson.author.name, 'Google Chrome');
+  assert.strictEqual(geminiJson.author.name, 'Hong Liu');
 
   const pkgJsonRaw = await fs.readFile(path.join(STAGING_DIR, 'package.json'), 'utf8');
   const pkgJson = JSON.parse(pkgJsonRaw);
-  assert.strictEqual(pkgJson.publisher, 'GoogleChrome');
+  assert.strictEqual(pkgJson.publisher, 'Hong Liu');
+  assert.strictEqual(pkgJson.name, '@hylouis233/modern-web-guidance');
   assert.ok(pkgJson.contributes?.chatSkills, 'Must contribute chatSkills');
   assert.strictEqual(pkgJson.contributes.chatSkills[0].path, './skills/modern-web-guidance/SKILL.md');
 });
@@ -130,7 +131,7 @@ test('Gemini and VS Code manifests', async () => {
 test('Kimi plugin manifest', async () => {
   const kimiJson = JSON.parse(await fs.readFile(path.join(STAGING_DIR, 'kimi.plugin.json'), 'utf8'));
   assert.strictEqual(kimiJson.name, 'modern-web-guidance');
-  assert.strictEqual(kimiJson.author.name, 'Google Chrome');
+  assert.strictEqual(kimiJson.author.name, 'Hong Liu');
 
   // updateVersionsInDir must keep the manifest version in sync with the rest of the distribution
   const pkgJson = JSON.parse(await fs.readFile(path.join(STAGING_DIR, 'package.json'), 'utf8'));
@@ -149,7 +150,7 @@ test('Agent Plugins manifest (plugin.json)', async () => {
   const pluginJson = JSON.parse(await fs.readFile(path.join(STAGING_DIR, 'plugin.json'), 'utf8'));
   assert.strictEqual(pluginJson.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
   assert.strictEqual(pluginJson.name, 'modern-web-guidance');
-  assert.strictEqual(pluginJson.author.name, 'Google Chrome');
+  assert.strictEqual(pluginJson.author.name, 'Hong Liu');
   assert.strictEqual(pluginJson.license, 'Apache-2.0');
 
   // updateVersionsInDir must keep the manifest version in sync with the rest of the distribution
@@ -221,7 +222,7 @@ test('README template and dynamic Skill Coverage content', async () => {
     assert.ok(readmeRaw.includes('<details>'), 'README should contain collapsible details tags');
     assert.ok(readmeRaw.includes('<h3>'), 'README should contain category h3 headings');
     assert.match(readmeRaw, /https:\/\/web-platform-dx\.github\.io\/web-features-explorer\/features\//, 'README should contain links to Web Features Explorer');
-    assert.match(readmeRaw, /https:\/\/github\.com\/GoogleChrome\/modern-web-guidance\/blob\/main\/skills\/modern-web-guidance\/guides\//, 'README should contain GitHub blob links for use cases');
+    assert.match(readmeRaw, /https:\/\/github\.com\/Hylouis233\/modern-web-guidance\/blob\/main\/skills\/modern-web-guidance\/guides\//, 'README should contain GitHub blob links for use cases');
   }
 });
 
