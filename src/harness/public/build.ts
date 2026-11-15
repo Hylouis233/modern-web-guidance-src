@@ -7,7 +7,15 @@ import { buildSelectedSuites, buildSuite, PUBLIC_EVALS_DIR, writeManifest } from
 import type { BuildOptions, SuiteBuildResult } from './builder.ts';
 import { forbiddenTokens, forbiddenTokensVersion } from './forbidden-tokens.ts';
 import { reportResults } from './report.ts';
-import { GcsSuiteStore, LocalSuiteStore } from './suite-store.ts';
+import { suitesDir } from '../../core/paths.ts';
+import { LocalSuiteStore } from './suite-store.ts';
+
+function openLocalStore(source: string): LocalSuiteStore {
+  if (source === 'gcs' || source.startsWith('gs://')) {
+    throw new Error('Remote Google Cloud Storage is disabled. Pass a local suite directory.');
+  }
+  return new LocalSuiteStore(source);
+}
 
 /**
  * CLI: build the public copy of eval suites.
@@ -18,7 +26,7 @@ import { GcsSuiteStore, LocalSuiteStore } from './suite-store.ts';
  * Options:
  *   --out <dir>              Output root (default: out/). Suites land in <out>/public-evals/.
  *   --allowlist <file>       Allowlist JSON (default: src/harness/public/allowlist.json).
- *   --source <gcs|dir>       Read from the bucket (default) or a local directory laid out like it.
+ *   --source <dir>           Local directory of suites. Defaults to results/suites. `gcs` is rejected.
  *   --forbidden-tokens a,b   Extra tokens that must not appear in output. Also read from
  *                            PUBLIC_EVALS_FORBIDDEN_TOKENS (required when CI is set). Outside
  *                            CI the current OS user is added too.
@@ -36,7 +44,7 @@ async function main(): Promise<number> {
       suite: { type: 'string', multiple: true, default: [] },
       out: { type: 'string', default: defaultOutRoot },
       allowlist: { type: 'string', default: DEFAULT_ALLOWLIST_PATH },
-      source: { type: 'string', default: 'gcs' },
+      source: { type: 'string', default: suitesDir },
       'forbidden-tokens': { type: 'string', default: '' },
       force: { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
@@ -44,12 +52,12 @@ async function main(): Promise<number> {
   });
 
   if (values.help || (!values.all && values.suite.length === 0)) {
-    console.log('Usage: build.ts (--all | --suite <id>...) [--out <dir>] [--allowlist <file>] [--source gcs|<dir>] [--forbidden-tokens a,b] [--force]');
+    console.log('Usage: build.ts (--all | --suite <id>...) [--out <dir>] [--allowlist <file>] [--source <dir>] [--forbidden-tokens a,b] [--force]');
     return values.help ? 0 : 1;
   }
 
   const options: BuildOptions = {
-    store: values.source === 'gcs' ? new GcsSuiteStore() : new LocalSuiteStore(values.source),
+    store: openLocalStore(values.source),
     outDir: path.resolve(values.out),
     allowlist: loadValidatedAllowlist(values.allowlist),
     forbiddenTokens: forbiddenTokens(values['forbidden-tokens'].split(',')),

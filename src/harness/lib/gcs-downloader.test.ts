@@ -31,48 +31,36 @@ describe('gcs-downloader', () => {
     }
   });
 
-  test('partial local directory with only trajectory_summary.json (missing _results.json and sentinel) triggers GCS download instead of returning cached true', async () => {
+  test('partial local directory does not contact the network and returns false', async () => {
     const testSuite = `test-gcs-partial-${Date.now()}`;
     const testRunDir = path.join(resultsDir, testSuite, '1', 'details-styling', 'task', 'guided');
     fs.mkdirSync(testRunDir, { recursive: true });
 
     const origFetch = globalThis.fetch;
-    const origToken = process.env.GD_GCS_TOKEN;
-    let listApiCalled = false;
+    let fetchCount = 0;
 
     try {
       fs.writeFileSync(path.join(resultsDir, testSuite, 'evals.json'), JSON.stringify({ suite: testSuite }));
-      // Only trajectory_summary.json is present (no _results.json, no runtime.json, no .gcs_download_complete)
       fs.writeFileSync(
         path.join(testRunDir, 'trajectory_summary.json'),
         JSON.stringify({ normalizerVersion: NORMALIZER_VERSION, agent: 'claude_code', steps: [{ stepNumber: 1 }] })
       );
 
-      process.env.GD_GCS_TOKEN = 'Bearer mock-test-token';
-      globalThis.fetch = (async (input: string | URL | Request) => {
-        const url = String(input);
-        if (url.includes('prefix=')) {
-          listApiCalled = true;
-          return new Response(JSON.stringify({ items: [] }), { status: 200 });
-        }
-        return new Response('Not found', { status: 404 });
+      globalThis.fetch = (async () => {
+        fetchCount++;
+        return new Response('unexpected', { status: 500 });
       }) as typeof fetch;
 
       const result = await downloadRunFromGcsIfMissing(testRunDir);
-      assert.strictEqual(listApiCalled, true, 'Expected GCS list API to be invoked for incomplete local run directory');
-      assert.strictEqual(result, false, 'Expected false when GCS returns 0 files for partial directory');
+      assert.strictEqual(fetchCount, 0, 'Incomplete local runs must not trigger a download');
+      assert.strictEqual(result, false);
     } finally {
       globalThis.fetch = origFetch;
-      if (origToken === undefined) {
-        delete process.env.GD_GCS_TOKEN;
-      } else {
-        process.env.GD_GCS_TOKEN = origToken;
-      }
       fs.rmSync(path.join(resultsDir, testSuite), { recursive: true, force: true });
     }
   });
 
-  test('downloadSuiteEvalsIfMissing deduplicates concurrent downloads for the same suiteName', async () => {
+  test('downloadSuiteEvalsIfMissing does not create files or call the network', async () => {
     const testSuite = `test-gcs-dedup-${Date.now()}`;
     const origFetch = globalThis.fetch;
     let fetchCount = 0;
@@ -80,8 +68,7 @@ describe('gcs-downloader', () => {
     try {
       globalThis.fetch = (async () => {
         fetchCount++;
-        await new Promise((r) => setTimeout(r, 25));
-        return new Response(JSON.stringify({ suite: testSuite, agent: 'claude_code' }), { status: 200 });
+        return new Response('{}', { status: 200 });
       }) as typeof fetch;
 
       await Promise.all([
@@ -90,8 +77,8 @@ describe('gcs-downloader', () => {
         downloadSuiteEvalsIfMissing(testSuite, 'Bearer mock-token')
       ]);
 
-      assert.strictEqual(fetchCount, 1, 'Expected concurrent evals.json downloads for the same suite to be deduplicated into a single request');
-      assert.ok(fs.existsSync(path.join(resultsDir, testSuite, 'evals.json')));
+      assert.strictEqual(fetchCount, 0);
+      assert.strictEqual(fs.existsSync(path.join(resultsDir, testSuite, 'evals.json')), false);
     } finally {
       globalThis.fetch = origFetch;
       fs.rmSync(path.join(resultsDir, testSuite), { recursive: true, force: true });

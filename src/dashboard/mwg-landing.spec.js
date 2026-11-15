@@ -59,7 +59,8 @@ test.describe('Landing page MWG compliance', () => {
     }
     await expect(page.locator('meta[name="referrer"]')).toHaveAttribute('content', 'strict-origin-when-cross-origin');
     await expect(page.locator('meta[name="text-scale"]')).toHaveAttribute('content', 'scale');
-    await expect(page.locator('link[rel="preconnect"][href="https://storage.googleapis.com"]')).toHaveAttribute('crossorigin', '');
+    await expect(page.locator('link[rel="preconnect"][href="https://storage.googleapis.com"]')).toHaveCount(0);
+    await expect(page.locator('script[src="https://accounts.google.com/gsi/client"]')).toHaveCount(0);
     expect(thirdParty).toEqual([]);
     expect(errors).toEqual([]);
   });

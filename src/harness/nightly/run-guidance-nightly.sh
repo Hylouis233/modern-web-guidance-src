@@ -90,25 +90,8 @@ export SUMMARY_FILE
 FAILED=0
 
 send_summary_email() {
-  local exit_code=$?
-  set +e
-  
-  local sendgmr_cmd="/google/bin/releases/gws-sre/files/sendgmr/sendgmr"
-  local subject="Guidance ${DISPLAY_NAME} Eval Completed Successfully"
-  
-  if [ "$FAILED" -ne 0 ] || [ "$exit_code" -ne 0 ]; then
-    subject="Guidance ${DISPLAY_NAME} Eval FAILED"
-  fi
-
-  {
-    printf "Guidance %s run results:\n\n" "${DISPLAY_NAME}"
-    if [ -s "$SUMMARY_FILE" ]; then
-      cat "$SUMMARY_FILE"
-    else
-      printf "❌ Catastrophic failure occurred before any agent results could be recorded.\n"
-    fi
-  } | timeout 100s $sendgmr_cmd --subject="$subject" --to="${USER_LDAP}@google.com" || echo "Warning: Failed to send email via sendgmr"
-  
+  # Local-only fork: the summary stays in the temp file until this cleanup.
+  # Nothing is emailed.
   rm -f "$SUMMARY_FILE"
 }
 trap send_summary_email EXIT
@@ -124,16 +107,6 @@ will_publish() {
     [ -z "$(git status --porcelain)" ] && \
     [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main 2>/dev/null)" ]
 }
-
-# Preflight check: verify gh CLI is installed and authenticated upfront, failing fast before evals run.
-if will_publish; then
-  if ! command -v gh >/dev/null 2>&1; then
-    die "gh CLI is required to publish public evals after nightly runs, but is not installed or not in PATH."
-  fi
-  if ! gh auth status >/dev/null 2>&1; then
-    die "gh is not authenticated. Please run 'gh auth login' (with workflow scope) to allow dispatching the Pages deployment after nightly evals."
-  fi
-fi
 
 # Run agents sequentially
 export NIGHTLY_GUIDANCE_RUN=1
@@ -166,21 +139,7 @@ done
 # `main` checkout that matches origin/main: a --local run, a feature branch, or
 # local edits would push a local allowlist and scrubber to the live site.
 publish_public_evals() {
-  if ! will_publish; then
-    printf "Public evals not published: requires a clean main checkout synced with origin/main without --local.\n\n" >> "$SUMMARY_FILE"
-    return
-  fi
-  local out status=0
-  out=$(timeout 30m pnpm public:publish 2>&1) || status=$?
-  printf '%s\n' "$out"
-  local summary
-  summary=$(printf '%s\n' "$out" | sed 's/\x1b\[[0-9;]*m//g' | grep -Ev '^(skipped|FAILED| ) ' || true)
-  if [ "$status" -eq 0 ]; then
-    printf "Public evals published.\n%s\n\n" "$(echo "$summary" | tail -4)" >> "$SUMMARY_FILE"
-  else
-    printf "Public evals publish FAILED (exit %s).\n%s\n\n" "$status" "$(echo "$summary" | tail -10)" >> "$SUMMARY_FILE"
-    FAILED=1
-  fi
+  printf "Public evals stay on this machine. This fork does not publish them.\n\n" >> "$SUMMARY_FILE"
 }
 publish_public_evals
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ChromeModernWebGuidance, LogRequest } from '../types.ts';
+import type { ChromeModernWebGuidance } from '../types.ts';
 
 export interface ClearcutSenderConfig {
   clearcutEndpoint?: string;
@@ -12,11 +12,6 @@ export interface ClearcutSenderConfig {
 }
 
 const MAX_BUFFER_SIZE = 1000;
-const DEFAULT_CLEARCUT_ENDPOINT = 'https://play.googleapis.com/log?format=json_proto';
-
-const LOG_SOURCE = 2921;
-const CLIENT_TYPE = 50;
-const REQUEST_TIMEOUT_MS = 10_000;
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 
 interface BufferedEvent {
@@ -31,14 +26,10 @@ function logger(...args: any[]) {
 }
 
 export class ClearcutSender {
-  #clearcutEndpoint: string;
-  #includePidHeader: boolean;
   #buffer: BufferedEvent[] = [];
 
-  constructor(config: ClearcutSenderConfig = {}) {
-    this.#clearcutEndpoint =
-      config.clearcutEndpoint ?? DEFAULT_CLEARCUT_ENDPOINT;
-    this.#includePidHeader = config.includePidHeader ?? false;
+  constructor(_config: ClearcutSenderConfig = {}) {
+    // Configuration is ignored. This fork never contacts a telemetry endpoint.
   }
 
   enqueueEvent(event: ChromeModernWebGuidance): void {
@@ -72,41 +63,6 @@ export class ClearcutSender {
   }
 
   async #sendBatch(events: BufferedEvent[]): Promise<void> {
-    logger(`Sending batch of ${events.length} events`);
-    const requestBody: LogRequest = {
-      log_source: LOG_SOURCE,
-      request_time_ms: Date.now().toString(),
-      client_info: {
-        client_type: CLIENT_TYPE,
-      },
-      log_event: events.map(({event, timestamp}) => ({
-        event_time_ms: timestamp.toString(),
-        source_extension_json: JSON.stringify(event),
-      })),
-    };
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    try {
-      const response = await fetch(this.#clearcutEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.#includePidHeader
-            ? {'X-Watchdog-Pid': process.pid.toString()}
-            : {}),
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      if (!response.ok) {
-        logger('Telemetry error status:', response.status);
-      }
-    } catch (err) {
-      clearTimeout(timeoutId);
-      logger('Fetch failed:', err);
-    }
+    logger(`Dropped ${events.length} telemetry events. This fork does not upload usage data.`);
   }
 }

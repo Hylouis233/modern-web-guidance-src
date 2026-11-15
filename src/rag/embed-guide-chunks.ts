@@ -27,11 +27,6 @@ import {
   scanCorpusChunks,
   type GuideChunk,
 } from "../core/guide-chunks.ts";
-import {
-  postWithRetry,
-  isBatchEmbeddingResponse,
-} from "./gemini-api.ts";
-
 export interface EmbedChunksOptions {
   check?: boolean;
   force?: boolean;
@@ -70,54 +65,9 @@ export async function embedGuideChunks(options: EmbedChunksOptions = {}): Promis
 
   let newEmbeds = 0;
   if (missingChunks.length > 0) {
-    try {
-      process.loadEnvFile(path.join(rootDir, ".env"));
-    } catch {
-      // .env is optional if key is already in process.env
-    }
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
-    if (!apiKey) {
-      throw new Error(
-        `GEMINI_API_KEY is required in .env or environment to embed ${missingChunks.length} missing guide chunks.`
-      );
-    }
-
-    console.log(
-      `Embedding ${missingChunks.length} missing chunks using ${TEACHER_MODEL} (${TASK_TYPE}, ${TEACHER_DIM}-d -> ${STATIC_DIMS}-d)...`
+    throw new Error(
+      `Remote embedding is disabled. ${missingChunks.length} guide chunk(s) are missing from the local cache. This fork does not send guide text to Google.`
     );
-
-    const BATCH_SIZE = 100;
-    const batches: GuideChunk[][] = [];
-    for (let i = 0; i < missingChunks.length; i += BATCH_SIZE) {
-      batches.push(missingChunks.slice(i, i + BATCH_SIZE));
-    }
-
-    for (let bIdx = 0; bIdx < batches.length; bIdx++) {
-      const batch = batches[bIdx];
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${TEACHER_MODEL}:batchEmbedContents?key=${apiKey}`;
-      const body = {
-        requests: batch.map((c) => ({
-          model: `models/${TEACHER_MODEL}`,
-          content: { parts: [{ text: c.embeddedText.slice(0, 8000) }] },
-          taskType: TASK_TYPE,
-          outputDimensionality: TEACHER_DIM,
-        })),
-      };
-
-      const res = await postWithRetry(url, body);
-      if (!isBatchEmbeddingResponse(res)) {
-        throw new Error(`Invalid batchEmbedContents response shape from ${TEACHER_MODEL}`);
-      }
-
-      res.embeddings.forEach((e, i) => {
-        const chunk = batch[i];
-        const v256 = truncateAndNormalize256(e.values);
-        workingCache.set(chunk.hash, v256);
-        newEmbeds++;
-      });
-
-      console.log(`  Batch ${bIdx + 1}/${batches.length} completed (+${batch.length} chunks)`);
-    }
   }
 
   // Prune unused entries from older guide versions or deleted guides only if explicitly requested

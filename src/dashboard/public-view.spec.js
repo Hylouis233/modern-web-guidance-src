@@ -16,11 +16,8 @@ import { FIXTURE_MODEL, FIXTURE_SUITE, makeFixtureStore, SECURITY_RUN } from '..
 const SUITE = FIXTURE_SUITE;
 const GOOGLE_HOSTS = /https:\/\/[^/]*(googleapis\.com|cloud\.google\.com|accounts\.google\.com)\//;
 /**
- * Every page carries a `<script src="https://accounts.google.com/gsi/client">` tag, so that one
- * request is expected on every load and is not counted against the zero-Google-host assertions.
- * It is still aborted, and `stubGoogleSignIn` stands in for the library it would have loaded.
+ * This fork does not load Google Identity Services. Every request to a Google host is a failure.
  */
-const GSI_SCRIPT = 'https://accounts.google.com/gsi/client';
 
 /** @type {string} */
 let publicDir;
@@ -87,7 +84,7 @@ async function servePublicCopy(page, options = {}) {
   }
   await stubGoogleSignIn(page);
   await page.context().route(GOOGLE_HOSTS, route => {
-    if (route.request().url() !== GSI_SCRIPT) googleRequests.push(route.request().url());
+    googleRequests.push(route.request().url());
     return route.abort();
   });
   await page.context().route('**/public-evals/**', route => {
@@ -197,32 +194,21 @@ test.describe('Public view', () => {
     await expect(page.locator('#scheduled-only-check')).toBeVisible();
   });
 
-  test('Sign in with Google button is hidden by default and revealed by ?show_login=true', async ({ page }) => {
-    await servePublicCopy(page);
+  test('Sign in stays hidden, including when ?show_login=true', async ({ page }) => {
+    const { googleRequests } = await servePublicCopy(page);
 
-    await page.goto('/?source=public');
-    await expect(page.locator('#auth-btn')).toBeHidden();
-
-    await page.goto('/?source=public&show_login=false');
-    await expect(page.locator('#auth-btn')).toBeHidden();
-
-    await page.goto('/?source=public&show_login=true');
-    await expect(page.locator('#auth-btn')).toBeVisible();
-    await expect(page.locator('#auth-btn')).toHaveText(/Sign in/);
-
-    await page.goto(`/dashboard.html?testId=${SUITE}&source=public`);
-    await expect(page.locator('#auth-btn')).toBeHidden();
-
-    await page.goto(`/dashboard.html?testId=${SUITE}&source=public&show_login=true`);
-    await expect(page.locator('#auth-btn')).toBeVisible();
-    await expect(page.locator('#auth-btn')).toHaveText(/Sign in/);
-
-    await page.goto('/guide.html?guide=security&source=public');
-    await expect(page.locator('#auth-btn')).toBeHidden();
-
-    await page.goto('/guide.html?guide=security&source=public&show_login=true');
-    await expect(page.locator('#auth-btn')).toBeVisible();
-    await expect(page.locator('#auth-btn')).toHaveText(/Sign in/);
+    for (const url of [
+      '/?source=public',
+      '/?source=public&show_login=false',
+      '/?source=public&show_login=true',
+      `/dashboard.html?testId=${SUITE}&source=public&show_login=true`,
+      '/guide.html?guide=security&source=public&show_login=true',
+    ]) {
+      await page.goto(url);
+      await expect(page.locator('#auth-btn')).toBeHidden();
+      await expect(page.locator('#hero-auth-btn')).toBeHidden();
+    }
+    expect(googleRequests).toEqual([]);
   });
 
   test('suite page renders, and Diff and Log open from public-evals only', async ({ page }) => {
@@ -494,214 +480,68 @@ test.describe('Public view', () => {
     await page.goto('/?source=public');
     await expect(page.locator('.suites-empty-row')).toBeVisible();
     await expect(page.locator('.suite-table-row')).toHaveCount(0);
-    await expect(page.locator('#hero-status-text')).toHaveText('No published results yet. Googlers can sign in to see internal jobs.');
+    await expect(page.locator('#hero-status-text')).toHaveText('No published results yet. Evaluation files stay on this machine.');
     await expect(page.locator('#hero-auth-btn')).toBeHidden();
 
     await page.goto('/?source=public&show_login=true');
-    await expect(page.locator('#hero-auth-btn')).toBeVisible();
+    await expect(page.locator('#hero-auth-btn')).toBeHidden();
     expect(errors.filter(e => e.includes('public suites'))).toEqual([]);
     expect(googleRequests).toEqual([]);
   });
 
-  test('Sign in from the public view reloads the page from the bucket', async ({ page }) => {
-    const { googleRequests } = await servePublicCopy(page, { manageToken: false });
+  test('a stored token and ?source=remote still read the public copy', async ({ page }) => {
+    const { googleRequests } = await servePublicCopy(page, { token: 'leftover-token' });
     const authHeaders = await mockPrivateBucket(page);
     const origin = await serveAsGitHubPages(page);
 
-    await page.goto(`${origin}/?source=public&show_login=true`);
-    const row = () => page.locator('.suite-table-row', { hasText: 'codex' }).first();
-    await expect(row().locator('.source-cell')).toHaveText('public');
+    await page.goto(`${origin}/?source=remote&show_login=true`);
+    const row = page.locator('.suite-table-row', { hasText: 'codex' }).first();
+    await expect(row.locator('.source-cell')).toHaveText('public');
+    await expect(page.locator('#auth-btn')).toBeHidden();
     expect(authHeaders).toEqual([]);
-
-    await page.locator('#auth-btn').click();
-    await page.waitForURL(url => url.origin === origin && url.pathname === '/' && url.search === '');
-    await expect(page.locator('#auth-btn')).toHaveText('Sign out');
-    await expect(row().locator('.source-cell')).toHaveText('remote');
-    await expect(page.locator('.suite-table-row', { hasText: 'codex' })).toHaveCount(1);
-    expect(await page.evaluate(() => localStorage.getItem('gcs_access_token'))).toBe(FRESH_TOKEN);
-    expect(authHeaders).toContain(`Bearer ${FRESH_TOKEN}`);
     expect(googleRequests).toEqual([]);
   });
 });
 
-test.describe('Signed-in view', () => {
-  test('still reads the private bucket with a bearer token and renders', async ({ page }) => {
-    await servePublicCopy(page, { token: 'googler-token' });
+test.describe('Local-only view', () => {
+  test('a leftover token does not mix the public copy into the local view or call Google', async ({ page }) => {
+    const { googleRequests } = await servePublicCopy(page, { token: 'expired-token' });
+    const authHeaders = await mockPrivateBucket(page, { status: 403 });
+    /** @type {string[]} */
+    const publicRequests = [];
+    page.on('request', request => { if (request.url().includes('/public-evals/')) publicRequests.push(request.url()); });
+
+    await page.goto('/');
+    await expect(page.locator('.suite-table-row', { hasText: 'example-result' }).first()).toBeVisible();
+    await expect(page.locator('.suite-table-row', { hasText: 'codex' })).toHaveCount(0);
+    await expect(page.locator('#auth-btn')).toBeHidden();
+    expect(publicRequests).toEqual([]);
+    expect(authHeaders).toEqual([]);
+    expect(googleRequests).toEqual([]);
+  });
+
+  test('?source=remote on a suite page reads the public copy and never the bucket', async ({ page }) => {
+    const { googleRequests } = await servePublicCopy(page, { token: 'googler-token' });
     const authHeaders = await mockPrivateBucket(page);
 
     await page.goto(`/dashboard.html?testId=${SUITE}&source=remote`);
     await expect(page.locator('#test-header')).toContainText(SUITE);
     await expect(page.locator('.task-accordion').first()).toBeVisible();
-    await expect(page.locator('#auth-btn')).toHaveText('Sign out');
-
-    expect(authHeaders.length).toBeGreaterThan(0);
-    expect(authHeaders.every(h => h === 'Bearer googler-token')).toBe(true);
-  });
-
-  test('on the dev server, a rejected token does not mix the public copy into the local view', async ({ page }) => {
-    await servePublicCopy(page, { token: 'expired-token' });
-    await mockPrivateBucket(page, { status: 403 });
-    /** @type {string[]} */
-    const publicRequests = [];
-    page.on('request', request => { if (request.url().includes('/public-evals/')) publicRequests.push(request.url()); });
-
-    // No ?source=, on localhost: local mode, with the bucket merged in for a signed-in user.
-    await page.goto('/');
-    await expect(page.locator('.suite-table-row', { hasText: 'example-result' }).first()).toBeVisible();
-    await expect(page.locator('.suite-table-row', { hasText: 'codex' })).toHaveCount(0);
-    expect(publicRequests).toEqual([]);
-  });
-
-  test('Sign out forgets the token and returns to the public view', async ({ page }) => {
-    const { googleRequests } = await servePublicCopy(page, { manageToken: false });
-    await mockPrivateBucket(page);
-    const origin = await serveAsGitHubPages(page);
-
-    // Seed the token once (not via an init script, which would re-add it after sign-out navigates).
-    await page.goto(`${origin}/?source=public`);
-    await page.evaluate(() => localStorage.setItem('gcs_access_token', 'googler-token'));
-    await page.goto(`${origin}/`);
-    const authBtn = page.locator('#auth-btn');
-    await expect(authBtn).toHaveText('Sign out');
-    await expect(page.locator('.suite-table-row', { hasText: 'codex' }).first().locator('.source-cell')).toHaveText('remote');
-
-    await authBtn.click();
-    await page.waitForURL(url => url.origin === origin && url.pathname === '/' && url.search === '');
-    expect(await page.evaluate(() => localStorage.getItem('gcs_access_token'))).toBeNull();
     await expect(page.locator('#auth-btn')).toBeHidden();
-    await expect(page.locator('#auth-btn')).toHaveText(/Sign in/);
-    await expect(page.locator('.suite-table-row', { hasText: 'codex' }).first().locator('.source-cell')).toHaveText('public');
+    await expect(page.locator('#view-gcs-artifacts-btn')).toBeHidden();
+    expect(authHeaders).toEqual([]);
     expect(googleRequests).toEqual([]);
   });
 
-  test('Sign out from a suite page lands on the public landing page', async ({ page }) => {
-    await servePublicCopy(page, { manageToken: false });
-    await mockPrivateBucket(page);
-    const origin = await serveAsGitHubPages(page);
-
-    await page.goto(`${origin}/?source=public`);
-    await page.evaluate(() => localStorage.setItem('gcs_access_token', 'googler-token'));
-    await page.goto(`${origin}/dashboard.html?testId=${SUITE}`);
-    await expect(page.locator('#test-header')).toContainText(SUITE);
-    await expect(page.locator('#view-gcs-artifacts-btn')).toBeVisible();
-
-    // A private suite may not exist in the public copy, so reloading in place would error.
-    await page.locator('#auth-btn').click();
-    await page.waitForURL(url => url.origin === origin && url.pathname === '/' && url.search === '');
-    expect(await page.evaluate(() => localStorage.getItem('gcs_access_token'))).toBeNull();
-    await expect(page.locator('#auth-btn')).toBeHidden();
-    await expect(page.locator('#auth-btn')).toHaveText(/Sign in/);
-    await expect(page.locator('.suite-table-row', { hasText: 'codex' }).first().locator('.source-cell')).toHaveText('public');
-  });
-
-  test('on a project site under /repo/, links, Sign out, and public-evals stay under /repo/', async ({ page }) => {
-    await servePublicCopy(page, { manageToken: false });
-    await mockPrivateBucket(page);
-    const origin = await serveAsGitHubPages(page, '/repo');
-    /** @type {string[]} */
-    const publicPaths = [];
-    page.on('request', request => {
-      const url = new URL(request.url());
-      if (url.origin === origin && url.pathname.includes('public-evals/')) publicPaths.push(url.pathname);
-    });
-
-    await page.goto(`${origin}/repo/?source=public`);
-    await page.evaluate(() => localStorage.setItem('gcs_access_token', 'googler-token'));
-    await page.goto(`${origin}/repo/`);
-    await page.locator('.suite-table-row', { hasText: 'codex' }).first().locator('a.suite-link').click();
-    await expect(page.locator('#test-header')).toContainText(SUITE);
-    expect(new URL(page.url()).pathname).toBe('/repo/dashboard.html');
-
-    await page.locator('#auth-btn').click();
-    await page.waitForURL(url => url.origin === origin && url.pathname === '/repo/' && url.search === '');
-    await expect(page.locator('.suite-table-row', { hasText: 'codex' }).first().locator('.source-cell')).toHaveText('public');
-    expect(publicPaths.length).toBeGreaterThan(0);
-    expect(publicPaths.every(p => p.startsWith('/repo/public-evals/'))).toBe(true);
-  });
-
-  test('a token the bucket rejects is cleared and the landing falls back to the public copy', async ({ page }) => {
-    const { googleRequests } = await servePublicCopy(page, { token: 'expired-token' });
-    const authHeaders = await mockPrivateBucket(page, { status: 401 });
-    const origin = await serveAsGitHubPages(page);
-
-    await page.goto(`${origin}/`);
-    await expect(page.locator('.suite-table-row', { hasText: 'codex' }).first().locator('.source-cell')).toHaveText('public');
-    await expect(page.locator('#auth-btn')).toBeHidden();
-    await expect(page.locator('#auth-btn')).toHaveText(/Sign in/);
-    expect(authHeaders).toContain('Bearer expired-token');
-    expect(await page.evaluate(() => localStorage.getItem('gcs_access_token'))).toBeNull();
-    expect(googleRequests).toEqual([]);
-  });
-
-  test('a 403 from the bucket falls back to the public copy but keeps the token', async ({ page }) => {
+  test('an empty public copy does not offer Google sign-in', async ({ page }) => {
     const { googleRequests } = await servePublicCopy(page, { token: 'outsider-token' });
-    const authHeaders = await mockPrivateBucket(page, { status: 403 });
-    const origin = await serveAsGitHubPages(page);
-
-    await page.goto(`${origin}/`);
-    await expect(page.locator('.suite-table-row', { hasText: 'codex' }).first().locator('.source-cell')).toHaveText('public');
-    await expect(page.locator('#auth-btn')).toHaveText('Sign out');
-    expect(authHeaders).toContain('Bearer outsider-token');
-    expect(await page.evaluate(() => localStorage.getItem('gcs_access_token'))).toBe('outsider-token');
-    expect(googleRequests).toEqual([]);
-  });
-
-  test('after a 403 fallback, breakdown guide links carry source=public so the guide page does not bounce', async ({ page }) => {
-    const { googleRequests } = await servePublicCopy(page, { token: 'outsider-token' });
-    await mockPrivateBucket(page, { status: 403 });
-    const origin = await serveAsGitHubPages(page);
-
-    await page.goto(`${origin}/`);
-    await expect(page.locator('.suite-table-row', { hasText: 'codex' }).first().locator('.source-cell')).toHaveText('public');
-
-    const drawer = page.locator('#breakdowns');
-    await drawer.locator('summary').click();
-    const guideLink = page.locator('a.pivot-link', { hasText: 'security' }).first();
-    await expect(guideLink).toHaveAttribute('href', /source=public/);
-
-    await guideLink.click();
-    await page.waitForURL(url => url.pathname === '/guide.html');
-    await expect(page.locator('#guide-name-header')).toHaveText('security');
-    await expect(page.locator('.timeline-point').first()).toBeVisible();
-    expect(new URL(page.url()).searchParams.get('source')).toBe('public');
-    expect(googleRequests).toEqual([]);
-  });
-
-  test('a 403 fallback onto an empty public copy shows public-empty status without a Sign in CTA', async ({ page }) => {
-    await servePublicCopy(page, { token: 'outsider-token' });
     await page.context().route('**/public-evals/**', route => route.fulfill({ status: 404, body: '' }));
-    await mockPrivateBucket(page, { status: 403 });
     const origin = await serveAsGitHubPages(page);
 
     await page.goto(`${origin}/`);
-    await expect(page.locator('#hero-status-text')).toHaveText('No published results yet. Googlers can sign in to see internal jobs.');
+    await expect(page.locator('#hero-status-text')).toHaveText('No published results yet. Evaluation files stay on this machine.');
     await expect(page.locator('#hero-auth-btn')).toBeHidden();
-    await expect(page.locator('#auth-btn')).toHaveText('Sign out');
-  });
-
-  test('a 403 on a suite page returns to the public landing page and keeps the token', async ({ page }) => {
-    await servePublicCopy(page, { manageToken: false });
-    await mockPrivateBucket(page, { status: 403 });
-    const origin = await serveAsGitHubPages(page);
-
-    await page.goto(`${origin}/?source=public`);
-    await page.evaluate(() => localStorage.setItem('gcs_access_token', 'outsider-token'));
-    await page.goto(`${origin}/dashboard.html?testId=${SUITE}`);
-    await page.waitForURL(url => url.origin === origin && url.pathname === '/' && url.search === '');
-    await expect(page.locator('.suite-table-row', { hasText: 'codex' }).first().locator('.source-cell')).toHaveText('public');
-    await expect(page.locator('#auth-btn')).toHaveText('Sign out');
-    expect(await page.evaluate(() => localStorage.getItem('gcs_access_token'))).toBe('outsider-token');
-  });
-
-  test('remote manifest keeps its cache-buster', async ({ page }) => {
-    await servePublicCopy(page, { token: 'googler-token' });
-    /** @type {string[]} */
-    const urls = [];
-    await page.context().route(/storage\.googleapis\.com/, route => {
-      urls.push(route.request().url());
-      return route.fulfill({ json: [] });
-    });
-    await page.goto('/?source=remote');
-    await expect.poll(() => urls.some(u => u.includes('suites.gen.json') && /[?&]t=\d+/.test(u))).toBe(true);
+    await expect(page.locator('#auth-btn')).toBeHidden();
+    expect(googleRequests).toEqual([]);
   });
 });

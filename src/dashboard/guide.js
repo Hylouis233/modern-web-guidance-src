@@ -1,4 +1,4 @@
-import { initGoogleAuth, getAccessToken, escapeHtml, $, getScrollBehavior, isElementFullyVisible, scrollSvgLinkIntoViewOnFocus, whenElementSettlesInView, parseJobDateInfo, formatJobDate, getJobDayKey, setPopoverOpen, isPopoverOpen, SUPPORTS_ANCHOR_POSITIONING, placePopoverFallback, renderEffortChip, setupEffortTooltip, getEffortLevel, isDefaultEffort, compareEffortLevels, pickHigherPrecedenceEffort } from './utils.js';
+import { initGoogleAuth, escapeHtml, $, getScrollBehavior, isElementFullyVisible, scrollSvgLinkIntoViewOnFocus, whenElementSettlesInView, parseJobDateInfo, formatJobDate, getJobDayKey, setPopoverOpen, isPopoverOpen, SUPPORTS_ANCHOR_POSITIONING, placePopoverFallback, renderEffortChip, setupEffortTooltip, getEffortLevel, isDefaultEffort, compareEffortLevels, pickHigherPrecedenceEffort } from './utils.js';
 import { extractJobSummary } from './summary-extractor.js';
 import { ApiClient, isAuthRejection } from './api.js';
 import { isLocalServer, reloadAsRemote, resolveDataSource } from './data-source.js';
@@ -42,9 +42,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadManifestJobs('public');
         } else {
             await loadLocalJobs();
-            if (getAccessToken()) {
-                await loadManifestJobs('remote');
-            }
         }
         setupNavigationControls(guideName);
         renderGraphs(guideName);

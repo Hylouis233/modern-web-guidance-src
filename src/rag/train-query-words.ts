@@ -44,11 +44,6 @@ import {
   STATIC_DIMS,
   truncateAndNormalize256,
 } from "./quantize.ts";
-import {
-  postWithRetry,
-  isBatchEmbeddingResponse,
-} from "./gemini-api.ts";
-
 const TEACHER_DIM = 768;
 const DEFAULT_TEACHER_MODEL = "gemini-embedding-001";
 const DEFAULT_OUT_DIR = path.join(rootDir, "src/rag/gen");
@@ -273,62 +268,9 @@ async function embedWithTeacher(
     return out;
   }
 
-  const batches: string[][] = [];
-  for (let i = 0; i < todo.length; i += 100) {
-    batches.push(todo.slice(i, i + 100));
-  }
-
-  const save = () => {
-    const all = [...out.keys()];
-    const buf = new Float32Array(all.length * TEACHER_DIM);
-    all.forEach((t, i) => {
-      const vec = out.get(t);
-      if (vec) buf.set(vec, i * TEACHER_DIM);
-    });
-    fs.writeFileSync(`${binPath}.tmp`, Buffer.from(buf.buffer));
-    fs.writeFileSync(`${idxPath}.tmp`, JSON.stringify(all));
-    fs.renameSync(`${binPath}.tmp`, binPath);
-    fs.renameSync(`${idxPath}.tmp`, idxPath);
-  };
-
-  let next = 0;
-  let done = 0;
-  await Promise.all(
-    Array.from({ length: 2 }, async () => {
-      while (next < batches.length) {
-        const batch = batches[next++];
-        const res = await postWithRetry(
-          `https://generativelanguage.googleapis.com/v1beta/models/${teacherModel}:batchEmbedContents?key=${apiKey}`,
-          {
-            requests: batch.map((t) => ({
-              model: `models/${teacherModel}`,
-              content: { parts: [{ text: t.slice(0, 6000) }] },
-              taskType: "RETRIEVAL_QUERY",
-              outputDimensionality: TEACHER_DIM,
-            })),
-          }
-        );
-        if (!isBatchEmbeddingResponse(res)) {
-          throw new Error(`Invalid batchEmbedContents response shape from ${teacherModel}`);
-        }
-
-        res.embeddings.forEach((e, i) => {
-          const v = Float32Array.from(e.values);
-          const n = Math.hypot(...v) || 1;
-          for (let k = 0; k < TEACHER_DIM; k++) v[k] /= n;
-          out.set(batch[i], v);
-        });
-        done++;
-        if (done % 10 === 0 || done === batches.length) {
-          console.log(`  [${cacheName}] ${done}/${batches.length} batches embedded`);
-        }
-        if (done % 50 === 0) save();
-      }
-    })
+  throw new Error(
+    `Remote query embedding is disabled. ${todo.length} query text(s) are not in the local cache. This fork does not send text to Google.`
   );
-
-  save();
-  return out;
 }
 
 async function main(): Promise<void> {
@@ -342,15 +284,7 @@ async function main(): Promise<void> {
     },
   });
 
-  try {
-    process.loadEnvFile(path.join(rootDir, ".env"));
-  } catch {
-    // .env is optional if GEMINI_API_KEY is already in environment
-  }
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is required in .env or environment to distill teacher embeddings.");
-  }
+  const apiKey = '';
 
   const teacherModel = values.teacher ?? DEFAULT_TEACHER_MODEL;
   const cacheDir = values["cache-dir"] ? path.resolve(values["cache-dir"]) : DEFAULT_CACHE_DIR;

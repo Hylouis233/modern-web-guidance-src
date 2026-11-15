@@ -1,5 +1,3 @@
-import { parseMarkdownBullets } from './release-notes-markdown.ts';
-
 export interface GeminiResponse {
   candidates?: Array<{
     content?: {
@@ -11,7 +9,7 @@ export interface GeminiResponse {
 /**
  * Shared transport helper to invoke Gemini for markdown bullets with runtime validation and retries.
  */
-async function callGeminiForBullets(opts: {
+async function callGeminiForBullets(_opts: {
   prompt: string;
   apiKey: string;
   model: string;
@@ -20,90 +18,7 @@ async function callGeminiForBullets(opts: {
   expectedItems?: string[];
   maxRetries?: number;
 }): Promise<string[] | null> {
-  const { prompt, apiKey, model, validate, validationErrorMsg, expectedItems, maxRetries = 2 } = opts;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.2,
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.warn(
-          `Gemini API error (${response.status}) on attempt ${attempt}/${maxRetries + 1}: ${errorText}`
-        );
-        if (attempt <= maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-          continue;
-        }
-        return null;
-      }
-
-      const data = (await response.json()) as GeminiResponse;
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-      if (!text) {
-        console.warn(`Empty response from Gemini API on attempt ${attempt}/${maxRetries + 1}.`);
-        if (attempt <= maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-          continue;
-        }
-        return null;
-      }
-
-      const cleanedText = text
-        .replace(/^```(?:markdown|md)?\r?\n/, '')
-        .replace(/\r?\n```$/, '')
-        .trim();
-
-      const bullets = parseMarkdownBullets(cleanedText);
-
-      if (!validate(bullets)) {
-        const msg = validationErrorMsg
-          ? validationErrorMsg(bullets.length)
-          : `Gemini bullet validation failed with ${bullets.length} bullets.`;
-        console.warn(`⚠️ ${msg} (Attempt ${attempt}/${maxRetries + 1})`);
-        if (expectedItems && expectedItems.length > 0) {
-          console.warn(`Expected items (${expectedItems.length}):\n${expectedItems.map(item => `  - ${item}`).join('\n')}`);
-        }
-        if (bullets.length > 0) {
-          console.warn(`Received bullets (${bullets.length}):\n${bullets.map(b => `  ${b}`).join('\n')}`);
-        } else if (cleanedText) {
-          console.warn(`Raw response:\n${cleanedText}`);
-        }
-        if (attempt <= maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-          continue;
-        }
-        return null;
-      }
-
-      return bullets;
-    } catch (err) {
-      console.warn(
-        `Error generating summaries with Gemini on attempt ${attempt}/${maxRetries + 1}:`,
-        err
-      );
-      if (attempt <= maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-        continue;
-      }
-      return null;
-    }
-  }
-
-  return null;
+  throw new Error('Remote Gemini release notes are disabled. This fork does not upload diffs to Google.');
 }
 
 interface BuildGuideSummaryPromptOptions {

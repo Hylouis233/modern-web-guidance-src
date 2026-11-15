@@ -1,10 +1,9 @@
-import { Storage } from '@google-cloud/storage';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { cRed, cGreen, cCyan, cBold } from '../core/colors.ts';
-import { suitesDir as baseResultsDir } from '../core/paths.ts';
+import { outDir, suitesDir as baseResultsDir } from '../core/paths.ts';
 import { extractSuiteSummary } from '../dashboard/summary-extractor.js';
 import {
   BASE64_TRAJECTORY_SCRIPT_RE,
@@ -14,8 +13,7 @@ import {
   sanitizeTextSecrets,
 } from './lib/secret-guard.ts';
 
-const PROJECT_ID = 'chrome-kiwi-air-force-dev';
-const BUCKET_NAME = 'guidance-evals';
+const LOCAL_EVALS_DIR = path.join(outDir, 'local-evals');
 
 const TEXT_UPLOAD_EXTENSIONS = new Set([
   '.txt', '.log', '.json', '.jsonl', '.patch', '.md', '.css', '.js', '.mjs', '.cjs',
@@ -125,7 +123,7 @@ export async function uploadDirectory(
 
     const redactedCount = entries.filter(e => e.redacted).length;
     console.log(
-      `Discovered ${entries.length} files to upload${redactedCount > 0 ? ` (${redactedCount} redacted)` : ''}. Uploading concurrently...`,
+      `Discovered ${entries.length} files to archive locally${redactedCount > 0 ? ` (${redactedCount} redacted)` : ''}.`,
     );
 
     const concurrencyLevel = 50;
@@ -133,7 +131,7 @@ export async function uploadDirectory(
       const chunk = entries.slice(i, i + concurrencyLevel);
       await Promise.all(
         chunk.map(async (entry) => {
-          console.log(`Uploading ${entry.destinationPath} to gs://${BUCKET_NAME}/${entry.destinationPath}...`);
+          console.log(`Archiving ${entry.destinationPath} on the local disk...`);
           await bucket.upload(entry.localPath, { destination: entry.destinationPath });
         }),
       );
@@ -151,7 +149,7 @@ export async function reconcileAndUploadManifest(
   evalsData: any,
   options: { reextractAll?: boolean } = {},
 ) {
-  console.log(cCyan('🔄 Reconciling GCS suites manifest...'));
+  console.log(cCyan('🔄 Reconciling the local suites manifest...'));
   
   let remoteManifest: any[] = [];
   const manifestFile = bucket.file('suites.gen.json');
@@ -162,7 +160,7 @@ export async function reconcileAndUploadManifest(
       remoteManifest = JSON.parse(content.toString('utf8'));
     }
   } catch (e: any) {
-    console.warn(`Could not fetch existing suites.gen.json from GCS: ${e.message}`);
+    console.warn(`Could not read the local suites.gen.json: ${e.message}`);
   }
 
   // Fast prefix listing with pagination to detect all suites in GCS
@@ -212,7 +210,7 @@ export async function reconcileAndUploadManifest(
       const chunk = missingSuiteIds.slice(i, i + concurrency);
       await Promise.all(chunk.map(async (suiteId) => {
         try {
-          console.log(`${options.reextractAll ? 'Re-extracting' : 'Extracting'} summary for GCS suite: ${suiteId}...`);
+          console.log(`${options.reextractAll ? 'Re-extracting' : 'Extracting'} summary for local suite: ${suiteId}...`);
           const evalsFile = bucket.file(`${suiteId}/evals.json`);
           const [fileContent] = await evalsFile.download();
           const parsed = JSON.parse(fileContent.toString('utf8'));
@@ -234,7 +232,49 @@ export async function reconcileAndUploadManifest(
     resumable: false,
   });
 
-  console.log(cBold(cGreen(`✅ Reconciled and updated gs://${BUCKET_NAME}/suites.gen.json (${updatedList.length} suites)`)));
+  console.log(cBold(cGreen(`✅ Reconciled local suites.gen.json (${updatedList.length} suites)`)));
+}
+
+function resolveInside(root: string, rel: string): string {
+  const dest = path.resolve(root, rel);
+  const resolvedRoot = path.resolve(root);
+  if (dest !== resolvedRoot && !dest.startsWith(resolvedRoot + path.sep)) {
+    throw new Error(`Refusing to write outside the local archive: ${rel}`);
+  }
+  return dest;
+}
+
+/** Disk stand-in for the old bucket client. It never opens a network connection. */
+function createLocalArchive(root: string) {
+  fs.mkdirSync(root, { recursive: true });
+  return {
+    async upload(localPath: string, opts: { destination: string }) {
+      const dest = resolveInside(root, opts.destination);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(localPath, dest);
+    },
+    async getFiles() {
+      const prefixes = fs.readdirSync(root, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .map(entry => `${entry.name}/`);
+      return [[], null, { prefixes }];
+    },
+    file(objectPath: string) {
+      const dest = resolveInside(root, objectPath);
+      return {
+        async exists() {
+          return [fs.existsSync(dest)];
+        },
+        async download() {
+          return [fs.readFileSync(dest)];
+        },
+        async save(body: string) {
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          fs.writeFileSync(dest, body);
+        },
+      };
+    },
+  };
 }
 
 async function main() {
@@ -246,9 +286,8 @@ async function main() {
   const positionalArgs = args.filter(a => !a.startsWith('--'));
 
   if (reextractManifest && positionalArgs.length === 0) {
-    const storage = new Storage({ projectId: PROJECT_ID });
-    const bucket = storage.bucket(BUCKET_NAME);
-    await reconcileAndUploadManifest(bucket, null, null, { reextractAll: true });
+    const archive = createLocalArchive(LOCAL_EVALS_DIR);
+    await reconcileAndUploadManifest(archive, null, null, { reextractAll: true });
     return;
   }
 
@@ -315,17 +354,16 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(cBold(cCyan(`Starting upload for suite: ${suiteName}${summaryOnly ? ' (Summary Only)' : ''}`)));
+  console.log(cBold(cCyan(`Archiving suite locally: ${suiteName}${summaryOnly ? ' (Summary Only)' : ''}`)));
 
-  const storage = new Storage({ projectId: PROJECT_ID });
-  const bucket = storage.bucket(BUCKET_NAME);
+  const archive = createLocalArchive(LOCAL_EVALS_DIR);
 
   try {
-    await uploadDirectory(bucket, resultsDir, suiteName, summaryOnly);
-    console.log(cBold(cGreen(`\n✅ Successfully uploaded suite '${suiteName}' to gs://${BUCKET_NAME}/${suiteName}`)));
-    await reconcileAndUploadManifest(bucket, suiteName, evalsData, { reextractAll: reextractManifest });
+    await uploadDirectory(archive, resultsDir, suiteName, summaryOnly);
+    console.log(cBold(cGreen(`\n✅ Archived suite '${suiteName}' to ${path.join(LOCAL_EVALS_DIR, suiteName)}`)));
+    await reconcileAndUploadManifest(archive, suiteName, evalsData, { reextractAll: reextractManifest });
   } catch (error: any) {
-    console.error(cRed(`❌ Upload failed: ${error.message}`));
+    console.error(cRed(`❌ Local archive failed: ${error.message}`));
     process.exit(1);
   }
 }

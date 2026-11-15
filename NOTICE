@@ -1,0 +1,21 @@
+Modern Web Guidance (source) — local-only fork
+Copyright 2026 Hong Liu
+
+This repository is a modified fork of modern-web-guidance-src.
+It is not affiliated with, endorsed by, or maintained by Google.
+
+Original work copyright Google LLC and the Modern Web Guidance contributors.
+Code is licensed under the Apache License, Version 2.0 (see LICENSE).
+Guide text is licensed under CC-BY 4.0. Attribution remains with the original authors.
+
+Changes in this fork:
+- Clearcut telemetry never starts and never POSTs.
+- Suite archives, public eval builds, and the dashboard read and write local
+  directories only. Google Cloud Storage, gcloud tokens, and the storage proxy
+  are removed.
+- npm publish, GitHub Pages deployment, Gemini release-note and embedding
+  uploads, and the nightly summary email are removed.
+- A stored Google access token is ignored. Sign-in controls stay hidden.
+
+Upstream:
+https://github.com/GoogleChrome/modern-web-guidance-src

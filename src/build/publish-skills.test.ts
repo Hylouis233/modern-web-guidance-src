@@ -68,16 +68,17 @@ test('processSkills rewrites modern-web-guidance@latest to @next when distTag is
       path.join(tmpRoot, 'skills/modern-web-guidance/SKILL.md'),
       'utf8',
     );
-    assert.ok(nextSkillMd.includes('modern-web-guidance@next search'), 'Should rewrite search to @next');
+    assert.ok(nextSkillMd.includes('Do not run `npx`'), 'Should keep the local-only search instruction');
     assert.ok(!nextSkillMd.includes('modern-web-guidance@latest'), 'Should not retain @latest in next build');
+    assert.ok(!nextSkillMd.includes('npx -y modern-web-guidance'), 'Should not tell agents to install the npm package');
 
     processSkills(tmpRoot, 'latest');
     const latestSkillMd = await fs.readFile(
       path.join(tmpRoot, 'skills/modern-web-guidance/SKILL.md'),
       'utf8',
     );
-    assert.ok(latestSkillMd.includes('modern-web-guidance@latest search'), 'Should keep @latest for latest build');
-    assert.ok(!latestSkillMd.includes('modern-web-guidance@next'), 'Should not contain @next in latest build');
+    assert.ok(latestSkillMd.includes('Do not run `npx`'), 'Should keep the local-only search instruction');
+    assert.ok(!latestSkillMd.includes('npx -y modern-web-guidance'), 'Should not tell agents to install the npm package');
   } finally {
     await fs.rm(tmpRoot, { recursive: true, force: true });
   }

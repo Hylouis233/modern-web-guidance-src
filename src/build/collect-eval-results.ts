@@ -30,58 +30,26 @@ interface EvalsSummary {
   cliVersion?: string;
 }
 
-function pullRecentGcsSuites(): string[] {
-  console.log(`Querying GCS (gs://guidance-evals) for the latest nightly evaluation suites...`);
+function listLocalNightlySuites(): string[] {
   if (!fs.existsSync(suitesDir)) {
-    fs.mkdirSync(suitesDir, { recursive: true });
+    console.log(`No local suites directory at ${suitesDir}.`);
+    return [];
   }
-
-  try {
-    const lsOutput = execSync(`gcloud storage ls gs://guidance-evals/`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
-    const lines = lsOutput.split('\n');
-    const targetFolders: string[] = [];
-
-    for (const line of lines) {
-      const clean = line.trim();
-      if (!clean) continue;
-      const match = clean.match(/gs:\/\/guidance-evals\/(nightly-[^/]+)\//);
-      if (match) {
-        targetFolders.push(match[1]);
-      }
-    }
-
-    targetFolders.sort((a, b) => b.localeCompare(a));
-
-    const topRecent = targetFolders.slice(0, 10);
-    console.log(`Discovered ${targetFolders.length} remote suites. Syncing evals.json for top ${topRecent.length} most recent suites...`);
-
-    for (const folderName of topRecent) {
-      const localSuiteDir = path.join(suitesDir, folderName);
-      const targetEvalsPath = path.join(localSuiteDir, 'evals.json');
-
-      if (fs.existsSync(targetEvalsPath)) {
-        console.log(`  - ${folderName}: evals.json already cached locally.`);
-        continue;
-      }
-
-      fs.mkdirSync(localSuiteDir, { recursive: true });
-      console.log(`  - ${folderName}: copying evals.json from GCS...`);
-      try {
-        execSync(`gcloud storage cp gs://guidance-evals/${folderName}/evals.json ${targetEvalsPath}`, { stdio: 'ignore' });
-      } catch (syncErr) {
-        console.warn(`    ⚠️ Failed to copy evals.json for ${folderName}`);
-      }
-    }
-    console.log(`✅ Successfully synced evals.json for top 10 recent nightly evaluation runs from GCS.`);
-    return topRecent;
-  } catch (err: any) {
-    console.error(`❌ Error: Failed to list GCS bucket gs://guidance-evals. Cannot collect evaluation results without access to remote GCS data.`);
-    process.exit(1);
-  }
+  const targetFolders = fs.readdirSync(suitesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('nightly-'))
+    .map((entry) => entry.name)
+    .sort((a, b) => b.localeCompare(a))
+    .slice(0, 10);
+  console.log(`Using ${targetFolders.length} local nightly suite(s) from ${suitesDir}. Remote collection is disabled.`);
+  return targetFolders;
 }
 
 function collectResults() {
-  const targetSuites = pullRecentGcsSuites();
+  const targetSuites = listLocalNightlySuites();
+  if (targetSuites.length === 0) {
+    console.log('No local nightly suites. Leaving the checked-in summary unchanged.');
+    return;
+  }
 
   console.log(`Aggregating results from ${targetSuites.length} verified suites...`);
   const summaries: EvalsSummary[] = [];

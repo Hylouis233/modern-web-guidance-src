@@ -19,9 +19,7 @@ import {
   type QueryRecord,
 } from "./dataset.ts";
 import {
-  buildGenerateContentRequest,
   DEFAULT_JUDGE_MODEL,
-  parseJudgeResponse,
   RUBRIC_VERSION,
   type GuideCard,
   type ParsedJudgment,
@@ -32,11 +30,6 @@ export const DEFAULT_CONCURRENCY = 8;
 export const MAX_HEADINGS_PER_CARD = 24;
 export const MAX_BATCH_REQUESTS = 400;
 const BOILERPLATE_HEADING_RE = /^(?:table of contents|guidelines|code examples?|dos|don'ts|dos and don'ts)$/i;
-const GEMINI_API_BASE = "https://generativelanguage.googleapis.com";
-const MAX_HTTP_ATTEMPTS = 6;
-const RETRY_BASE_DELAY_MS = 2_000;
-const BATCH_POLL_MS = 30_000;
-const MAX_BATCH_POLLS = 240;
 
 export function extractCardHeadings(body: string, maxHeadings = MAX_HEADINGS_PER_CARD): string[] {
   // Parse rather than regex so `##` lines inside fenced code examples aren't mistaken for headings.
@@ -213,156 +206,21 @@ async function judgeSingleLive(
   model: string,
   existing?: QrelRecord
 ): Promise<ParsedJudgment> {
-  const url = `${GEMINI_API_BASE}/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const candidateIds = new Set(candidates.map((c) => c.id));
-  const body = JSON.stringify(buildGenerateContentRequest(query, candidates, existing?.grades));
-
-  for (let attempt = 1; ; attempt++) {
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-      });
-    } catch (err) {
-      if (attempt < MAX_HTTP_ATTEMPTS) {
-        await new Promise((r) => setTimeout(r, RETRY_BASE_DELAY_MS * attempt));
-        continue;
-      }
-      throw err;
-    }
-
-    if (res.ok) {
-      return parseJudgeResponse(await res.json(), query, candidateIds);
-    }
-    if ((res.status === 429 || res.status >= 500) && attempt < MAX_HTTP_ATTEMPTS) {
-      await new Promise((r) => setTimeout(r, RETRY_BASE_DELAY_MS * attempt));
-      continue;
-    }
-    throw new Error(`Judge HTTP ${res.status}: ${(await res.text()).slice(0, 400)}`);
-  }
+  void query;
+  void candidates;
+  void apiKey;
+  void model;
+  void existing;
+  throw new Error('Remote Gemini judging is disabled. This fork does not upload queries or guides.');
 }
 
 async function judgeChunkBatch(
-  items: { qid: string; query: string; candidates: GuideCard[]; existing?: QrelRecord }[],
-  apiKey: string,
-  model: string,
-  displayLabel: string
+  _items: { qid: string; query: string; candidates: GuideCard[]; existing?: QrelRecord }[],
+  _apiKey: string,
+  _model: string,
+  _displayLabel: string
 ): Promise<Map<string, ParsedJudgment>> {
-  const jsonlBody =
-    items
-      .map((item) =>
-        JSON.stringify({
-          key: item.qid,
-          request: buildGenerateContentRequest(item.query, item.candidates, item.existing?.grades),
-        })
-      )
-      .join("\n") + "\n";
-
-  const startRes = await fetch(`${GEMINI_API_BASE}/upload/v1beta/files?key=${apiKey}`, {
-    method: "POST",
-    headers: {
-      "X-Goog-Upload-Protocol": "resumable",
-      "X-Goog-Upload-Command": "start",
-      "X-Goog-Upload-Header-Content-Length": String(Buffer.byteLength(jsonlBody)),
-      "X-Goog-Upload-Header-Content-Type": "application/jsonl",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ file: { display_name: displayLabel } }),
-  });
-  const uploadUrl = startRes.headers.get("x-goog-upload-url");
-  if (!startRes.ok || !uploadUrl) {
-    throw new Error(`Batch upload start failed (${startRes.status}): ${await startRes.text()}`);
-  }
-
-  const uploadRes = await fetch(uploadUrl, {
-    method: "POST",
-    headers: {
-      "X-Goog-Upload-Offset": "0",
-      "X-Goog-Upload-Command": "upload, finalize",
-    },
-    body: jsonlBody,
-  });
-  if (!uploadRes.ok) {
-    throw new Error(`Batch upload finalize failed (${uploadRes.status}): ${await uploadRes.text()}`);
-  }
-  const uploaded: unknown = await uploadRes.json();
-  const fileName = isRecord(uploaded) && isRecord(uploaded.file) && typeof uploaded.file.name === "string"
-    ? uploaded.file.name
-    : undefined;
-  if (!fileName) {
-    throw new Error(`Missing file.name in upload response: ${JSON.stringify(uploaded)}`);
-  }
-
-  const submitRes = await fetch(`${GEMINI_API_BASE}/v1beta/models/${model}:batchGenerateContent?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      batch: {
-        displayName: displayLabel,
-        inputConfig: { fileName },
-      },
-    }),
-  });
-  if (!submitRes.ok) {
-    throw new Error(`Batch submit failed (${submitRes.status}): ${await submitRes.text()}`);
-  }
-  const submitted: unknown = await submitRes.json();
-  const batchName = isRecord(submitted) && typeof submitted.name === "string" ? submitted.name : undefined;
-  if (!batchName) {
-    throw new Error(`Missing batch name in submit response: ${JSON.stringify(submitted)}`);
-  }
-
-  let responsesFile: string | undefined;
-  for (let poll = 0; poll < MAX_BATCH_POLLS; poll++) {
-    const pollRes = await fetch(`${GEMINI_API_BASE}/v1beta/${batchName}?key=${apiKey}`);
-    if (!pollRes.ok) {
-      throw new Error(`Batch poll failed (${pollRes.status}): ${await pollRes.text()}`);
-    }
-    const op: unknown = await pollRes.json();
-    const metadata = isRecord(op) && isRecord(op.metadata) ? op.metadata : undefined;
-    const state = metadata && typeof metadata.state === "string" ? metadata.state : "UNKNOWN";
-    if (state === "BATCH_STATE_SUCCEEDED") {
-      const respObj = isRecord(op) && isRecord(op.response) ? op.response : undefined;
-      const metaOut = metadata && isRecord(metadata.output) ? metadata.output : undefined;
-      responsesFile =
-        (respObj && typeof respObj.responsesFile === "string" ? respObj.responsesFile : undefined) ??
-        (metaOut && typeof metaOut.responsesFile === "string" ? metaOut.responsesFile : undefined);
-      break;
-    }
-    if (state === "BATCH_STATE_FAILED" || state === "BATCH_STATE_CANCELLED" || state === "BATCH_STATE_EXPIRED") {
-      throw new Error(`Batch ${batchName} ended in ${state}: ${JSON.stringify(op).slice(0, 600)}`);
-    }
-    await new Promise((r) => setTimeout(r, BATCH_POLL_MS));
-  }
-
-  if (!responsesFile) {
-    throw new Error(`No responsesFile in completed batch ${batchName}`);
-  }
-
-  const downloadRes = await fetch(`${GEMINI_API_BASE}/download/v1beta/${responsesFile}:download?alt=media&key=${apiKey}`);
-  if (!downloadRes.ok) {
-    throw new Error(`Batch download failed (${downloadRes.status}): ${await downloadRes.text()}`);
-  }
-
-  const itemByQid = new Map(items.map((item) => [item.qid, item]));
-  const results = new Map<string, ParsedJudgment>();
-  const lines = (await downloadRes.text()).trim().split("\n").filter(Boolean);
-
-  for (const line of lines) {
-    const row: unknown = JSON.parse(line);
-    if (!isRecord(row) || typeof row.key !== "string") continue;
-    const item = itemByQid.get(row.key);
-    if (!item) continue;
-    if (row.error || !row.response) {
-      throw new Error(`Batch item ${row.key} failed: ${JSON.stringify(row.error ?? row).slice(0, 300)}`);
-    }
-    const candidateIds = new Set(item.candidates.map((c) => c.id));
-    results.set(item.qid, parseJudgeResponse(row.response, item.query, candidateIds));
-  }
-
-  return results;
+  throw new Error('Remote Gemini batch judging is disabled. This fork does not upload queries or guides.');
 }
 
 function mergeJudgmentRecord(

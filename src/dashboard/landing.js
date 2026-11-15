@@ -1,6 +1,5 @@
 import {
     initGoogleAuth,
-    getAccessToken,
     escapeHtml,
     timeAgo,
     formatDuration,
@@ -119,9 +118,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadManifestTests('public');
         } else {
             await loadLocalTests();
-            if (getAccessToken()) {
-                await loadManifestTests('remote');
-            }
         }
 
         selectedTestIds = new Set(Object.keys(allJobData));

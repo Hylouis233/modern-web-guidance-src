@@ -2,12 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
-import ghpages from 'gh-pages';
 import { buildDist, processSkills, type DistTag } from './build-dist.ts';
-import { updateReadmeWithFeaturesAndUseCases, getFeaturesAndUseCases } from './build-readme.ts';
+import { getFeaturesAndUseCases } from './build-readme.ts';
 import { fileURLToPath } from 'node:url';
 import { minimatch } from 'minimatch';
-import { generateReleaseNotes } from './generate-release-notes.ts';
 import { rootDir } from '../core/paths.ts';
 import { embedGuideChunks } from '../rag/embed-guide-chunks.ts';
 
@@ -15,7 +13,7 @@ const ROOT_DIR = rootDir; // modern-web-guidance-src/
 
 const DIST_DIR = path.join(ROOT_DIR, "dist");
 
-// This controls what is published to https://github.com/GoogleChrome/modern-web-guidance.
+// File filter for a local dry-run of the skill package. This fork does not publish it.
 export const GH_PUBLISH_PATTERNS = [
   '**/*',
   '!**/.cache/**',
@@ -113,22 +111,9 @@ const getLatestGitTag = (target = 'HEAD') => {
   return output.split('\n')[0].trim();
 };
 
-const DIST_REPO_URL = 'https://github.com/GoogleChrome/modern-web-guidance.git';
-
-function gitTagExists(version: string, targetRepos = ['origin', DIST_REPO_URL]): boolean {
+function gitTagExists(version: string): boolean {
   const localCheck = execSync(`git tag -l "v${version}"`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
-  if (localCheck) return true;
-
-  for (const targetRepo of targetRepos) {
-    try {
-      const remoteCheck = execSync(`git ls-remote --tags ${targetRepo} "refs/tags/v${version}"`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
-      if (remoteCheck) return true;
-    } catch (err) {
-      console.log(`Warning: Failed to check remote tags on ${targetRepo}:`, err instanceof Error ? err.message : err);
-    }
-  }
-
-  return false;
+  return Boolean(localCheck);
 }
 
 export async function getNextVersion(getLatestTag = getLatestGitTag): Promise<string> {
@@ -155,140 +140,6 @@ export async function getNextVersion(getLatestTag = getLatestGitTag): Promise<st
   const newVersion = incrementVersion(currentVersion);
   console.log(`Next version will be: ${newVersion}`);
   return newVersion;
-}
-
-async function publishBranchToDistributionRepo(
-  publishCliDir: string,
-  branch: 'main' | 'next' | 'claude',
-  message: string,
-  opts: { tag?: string; src?: string[] } = {},
-) {
-  const { tag, src = GH_PUBLISH_PATTERNS } = opts;
-  // gh-pages keeps one clone per repo URL (it has no per-branch clone option) and that clone
-  // is single-branch, so a second publish to another branch in the same run pushes a commit
-  // based on the wrong branch and gets rejected. Start every publish from a fresh clone.
-  ghpages.clean();
-  await new Promise<void>((resolve, reject) => {
-    ghpages.publish(
-      publishCliDir,
-      {
-        branch,
-        repo: 'git@github.com:GoogleChrome/modern-web-guidance.git',
-        dotfiles: true,
-        remove: '{**/*,**/.*/**/*,**/.[!.]*}',
-        message,
-        ...(tag ? { tag } : {}),
-        src,
-      },
-      (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      },
-    );
-  });
-}
-
-function getLatestDistributionReleaseTag(fallbackTag: string): string {
-  try {
-    const ghLatestRelease = execSync(
-      'gh release view -R GoogleChrome/modern-web-guidance --json tagName -q .tagName',
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] },
-    ).trim();
-    if (ghLatestRelease) {
-      execSync(`git rev-parse -q --verify "refs/tags/${ghLatestRelease}"`, { stdio: 'ignore' });
-      return ghLatestRelease;
-    }
-  } catch {
-    // Fall back to git ls-remote when gh CLI is unavailable or unauthenticated
-  }
-  try {
-    const remoteTags = execSync(
-      `git ls-remote --tags --refs --sort=-v:refname ${DIST_REPO_URL} "v*.*.*"`,
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] },
-    ).trim();
-    const firstLine = remoteTags.split('\n')[0];
-    const match = firstLine?.match(/refs\/tags\/(v\S+)$/);
-    if (match) {
-      execSync(`git rev-parse -q --verify "refs/tags/${match[1]}"`, { stdio: 'ignore' });
-      return match[1];
-    }
-  } catch {
-    // Fall back to local git tag if offline
-  }
-  return fallbackTag;
-}
-
-async function publishToDistributionRepo(
-  publishCliDir: string,
-  newVersion: string,
-  latestTag: string,
-  distTag: DistTag = 'latest',
-) {
-  if (distTag === 'next') {
-    console.log(`\nPublishing new dist/skills-cli/ to GoogleChrome/modern-web-guidance (next branch)...`);
-    await publishBranchToDistributionRepo(
-      publishCliDir,
-      'next',
-      `Release v${newVersion} (next)`,
-    );
-    console.log(`\n✅ Successfully published v${newVersion} to GoogleChrome/modern-web-guidance (next branch)!`);
-    return;
-  }
-
-  const previousReleaseTag = getLatestDistributionReleaseTag(latestTag);
-  console.log(`\nPublishing new dist/skills-cli/ to GoogleChrome/modern-web-guidance (main branch)...`);
-  await publishBranchToDistributionRepo(
-    publishCliDir,
-    'main',
-    `Release v${newVersion}`,
-    { tag: `v${newVersion}` },
-  );
-
-  console.log(`\nPublishing stripped Claude plugin to GoogleChrome/modern-web-guidance (claude branch)...`);
-  await publishBranchToDistributionRepo(
-    publishCliDir,
-    'claude',
-    `Release v${newVersion} (claude)`,
-    { src: GH_CLAUDE_PUBLISH_PATTERNS },
-  );
-
-  console.log(`Syncing GoogleChrome/modern-web-guidance (next branch) with v${newVersion}...`);
-  processSkills(publishCliDir, 'next');
-  try {
-    await publishBranchToDistributionRepo(
-      publishCliDir,
-      'next',
-      `Release v${newVersion}`,
-    );
-  } finally {
-    processSkills(publishCliDir, 'latest');
-  }
-
-  const releaseNotes = await generateReleaseNotes({
-    previousTag: previousReleaseTag,
-    newVersion,
-    publishCliDir,
-  });
-
-  // Attempt to create formal GitHub release on the distribution repo if gh CLI is authenticated
-  try {
-    console.log(`Creating GitHub release v${newVersion} on GoogleChrome/modern-web-guidance...`);
-    execSync(`gh release create "v${newVersion}" -R GoogleChrome/modern-web-guidance --title "v${newVersion}" --notes-file -`, {
-      input: releaseNotes,
-      stdio: ['pipe', 'inherit', 'pipe'],
-    });
-    console.log(`✅ GitHub release v${newVersion} created successfully!`);
-  } catch (err: any) {
-    console.log(`Note: Could not automatically create GitHub release via gh CLI: ${err?.message || err}`);
-  }
-
-  console.log('\n--- Release Notes ---');
-  console.log(releaseNotes);
-
-  console.log(`\n✅ Successfully published v${newVersion} to GoogleChrome/modern-web-guidance!`);
 }
 
 /**
@@ -354,8 +205,12 @@ export async function validate(newVersion: string, deps: ValidateDeps = {}) {
 }
 
 async function main() {
+  if (!isDryRun) {
+    console.error('External publishing is disabled in this local-only fork. Nothing is pushed to GitHub, npm, or Google.');
+    console.error('Re-run with --dry-run to validate the local build. The output stays in dist/skills-cli.');
+    process.exit(1);
+  }
   const { distTag, explicitVersion } = parsePublishOptions();
-  const latestTag = getLatestGitTag();
   let newVersion: string;
 
   if (explicitVersion) {
@@ -394,56 +249,10 @@ async function main() {
     console.log(`\n[Dry Run] Skills: ${skillsCount} (${skillNames.join(', ')})`);
     console.log(`\n[Dry Run] Features: ${featuresCount}, Use cases: ${useCasesCount}`);
 
-    const previousReleaseTag = getLatestDistributionReleaseTag(latestTag);
-    console.log(`\n[Dry Run] Generating release notes using Gemini for v${newVersion} (diff against ${previousReleaseTag})...`);
-    const releaseNotes = await generateReleaseNotes({
-      previousTag: previousReleaseTag,
-      newVersion,
-      publishCliDir,
-    });
-
-    console.log('\n============================== [DRY RUN] RELEASE NOTES ==============================');
-    console.log(releaseNotes);
-    console.log('====================================================================================\n');
+    console.log(`\n[Dry Run] Skipping Gemini release notes so the diff is not uploaded.`);
 
     console.log(`\n💡 Tip: Run thorough pre-flight verification with FULL=1 to include heavy agent tests:`);
     console.log(`   env FULL=1 TEST_REPORTER=spec pnpm test`);
-  } else {
-    console.log(`\n💡 Tip: Run thorough pre-flight verification with FULL=1 to include heavy agent tests:`);
-    console.log(`   env FULL=1 TEST_REPORTER=spec pnpm test`);
-
-    const ref = process.env.GITHUB_REF || 'main';
-    const branch = ref.replace(/^refs\/heads\//, '');
-    execSync(`git pull --rebase --autostash origin "${branch}"`, { stdio: 'inherit', cwd: ROOT_DIR });
-
-    // Update both the distribution bundle README and the source repo README
-    const { featuresCount, useCasesCount } = updateReadmeWithFeaturesAndUseCases([ROOT_DIR, publishCliDir]);
-
-    await publishToDistributionRepo(publishCliDir, newVersion, latestTag, distTag);
-
-    console.log('Committing automated documentation updates to source repo...');
-    try {
-      execSync('git diff --quiet README.md src/build/eval-results-summary.json src/rag/gen/guide-chunk-cache.json src/rag/gen/guide-chunk-cache.i8 src/rag/gen/guide-chunk-cache.scale.f32', { cwd: ROOT_DIR });
-      console.log("No changes in README.md, src/build/eval-results-summary.json, or static chunk cache to commit.");
-    } catch (err) {
-      console.log("Changes found in README.md, eval-results-summary.json, or static chunk cache, committing...");
-      execSync('git add README.md src/build/eval-results-summary.json src/rag/gen/guide-chunk-cache.json src/rag/gen/guide-chunk-cache.i8 src/rag/gen/guide-chunk-cache.scale.f32', { stdio: 'inherit', cwd: ROOT_DIR });
-      execSync('git commit -m "docs: auto-update recent evals and skill coverage in README.md [skip ci]"', { stdio: 'inherit', cwd: ROOT_DIR });
-      execSync(`git pull --rebase origin "${branch}"`, { stdio: 'inherit', cwd: ROOT_DIR });
-      execSync(`git push origin HEAD:"${ref}"`, { stdio: 'inherit', cwd: ROOT_DIR });
-    }
-
-    // Create and push tag on current repo
-    console.log(`Creating and pushing Git tag v${newVersion}...`);
-    execSync(`git tag v${newVersion}`, { stdio: 'inherit', cwd: ROOT_DIR });
-    execSync(`git push origin v${newVersion}`, { stdio: 'inherit', cwd: ROOT_DIR });
-
-    console.log(`\nv${newVersion} published.  https://github.com/GoogleChrome/modern-web-guidance  and [GoB repo](https://user.git.corp.google.com/rviscomi/modern-web-guidance/)`);
-    console.log(`${useCasesCount} usecases.`);
-    console.log(`${featuresCount} features`);
-    console.log(`${skillsCount} skills (${skillNames.join(', ')})`);
-
-    console.log('\nPerhaps also:\n    pushd ~/code/modern-web-guidance && git pull gh && git push gob && popd');
   }
 }
 

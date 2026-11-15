@@ -6,8 +6,8 @@ how to change what is published, see [RUNBOOK.md](./RUNBOOK.md).
 
 ## Where
 
-Everything lives under one directory on the same origin as the dashboard
-(GitHub Pages, `gh-pages` branch):
+Everything lives under one directory on this machine
+(`out/local-public-evals/`, gitignored). This fork does not publish it.
 
 ```
 public-evals/
@@ -137,9 +137,8 @@ So nothing needs UI for it:
   A suite appears when it matches the allowlist and `pnpm public:publish` runs;
   it disappears when it is added to `exclude` (or no longer matches) and the
   publisher runs again: its directory is removed and the manifest rewritten.
-- `pnpm public:publish` is the only publisher to `gh-pages`. It is stateless:
-  it checks out what is published, rebuilds from the checked-in allowlist, and
-  pushes.
+- `pnpm public:publish` writes `out/local-public-evals/` from local suites and
+  the checked-in allowlist. It does not push.
 - Retention (`retention.maxAgeDays`, `retention.maxSuitesPerAgent`, and
   `retention.maxSuites` in the allowlist) drops whole suites, oldest first by
   the run time in the suite id, to keep the site under GitHub Pages' 1 GB cap.

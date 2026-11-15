@@ -86,94 +86,17 @@ describe('ClearcutLogger', () => {
     }
   });
 
-  it('logs tool command results correctly via watchdog', async () => {
-    const sentMessages: any[] = [];
-    const sendMock = mock.method(WatchdogClient.prototype, 'send', (msg: any) => {
-      sentMessages.push(msg);
-    });
+  it('does not send tool, retrieve, or search events even when opt-out is unset', async () => {
+    const sendMock = mock.method(WatchdogClient.prototype, 'send', () => {});
 
     try {
-      const logger = new ClearcutLogger({ skillVersion: '2026_05_14-abc' });
+      const logger = new ClearcutLogger({ skillVersion: '2026_05_14-abc', agent: 'claude' });
       await logger.logToolCommand(120, true, CommandType.INSTALL);
-
-      assert.ok(sentMessages.length > 0, 'Should send at least one message to watchdog');
-      const payload = sentMessages[sentMessages.length - 1].payload;
-      assert.deepStrictEqual(payload.tool_command, { command_type: CommandType.INSTALL });
-      assert.strictEqual(payload.success, true);
-      assert.strictEqual(payload.latency_ms, 250); // 120 bucketized to 250
-      assert.strictEqual(payload.skill_version, '2026_05_14-abc');
-    } finally {
-      sendMock.mock.restore();
-    }
-  });
-
-  it('logs LIST tool command correctly via watchdog', async () => {
-    const sentMessages: any[] = [];
-    const sendMock = mock.method(WatchdogClient.prototype, 'send', (msg: any) => {
-      sentMessages.push(msg);
-    });
-
-    try {
-      const logger = new ClearcutLogger({ skillVersion: '2026_06_04-list' });
       await logger.logToolCommand(45, true, CommandType.LIST);
-
-      assert.ok(sentMessages.length > 0, 'Should send at least one message to watchdog');
-      const payload = sentMessages[sentMessages.length - 1].payload;
-      assert.deepStrictEqual(payload.tool_command, { command_type: CommandType.LIST });
-      assert.strictEqual(payload.success, true);
-      assert.strictEqual(payload.latency_ms, 50); // 45 bucketized to 50
-      assert.strictEqual(payload.skill_version, '2026_06_04-list');
-
       await logger.logToolCommand(180, true, CommandType.LEGACY_SCAN);
-      const scanPayload = sentMessages[sentMessages.length - 1].payload;
-      assert.deepStrictEqual(scanPayload.tool_command, { command_type: CommandType.LEGACY_SCAN });
-      assert.strictEqual(scanPayload.tool_command.command_type, 6);
-    } finally {
-      sendMock.mock.restore();
-    }
-  });
-
-  it('logs retrieve results correctly via watchdog', async () => {
-    const sentMessages: any[] = [];
-    const sendMock = mock.method(WatchdogClient.prototype, 'send', (msg: any) => {
-      sentMessages.push(msg);
-    });
-
-    try {
-      const logger = new ClearcutLogger({ skillVersion: '2026_05_14-xyz' });
       await logger.logRetrieveResult(300, false, 'guide-id-1');
-
-      assert.ok(sentMessages.length > 0, 'Should send at least one message to watchdog');
-      const payload = sentMessages[sentMessages.length - 1].payload;
-      assert.strictEqual(payload.retrieve_result.guide_id, 'guide-id-1');
-      assert.strictEqual(payload.success, false);
-      assert.strictEqual(payload.latency_ms, 500); // 300 bucketized to 500
-      assert.strictEqual(payload.skill_version, '2026_05_14-xyz');
-    } finally {
-      sendMock.mock.restore();
-    }
-  });
-
-  it('logs search results correctly via watchdog', async () => {
-    const sentMessages: any[] = [];
-    const sendMock = mock.method(WatchdogClient.prototype, 'send', (msg: any) => {
-      sentMessages.push(msg);
-    });
-
-    try {
-      const logger = new ClearcutLogger({ skillVersion: '2026_05_14-search', agent: 'claude' });
       await logger.logSearchResult('address form', 80, true, [{ guide_id: 'guide-1', similarity: 0.9 }]);
-
-      assert.ok(sentMessages.length > 0, 'Should send at least one message to watchdog');
-      const payload = sentMessages[sentMessages.length - 1].payload;
-      assert.deepStrictEqual(payload.search_result, {
-        query: 'address form',
-        search_items: [{ guide_id: 'guide-1', similarity: 0.9 }]
-      });
-      assert.strictEqual(payload.success, true);
-      assert.strictEqual(payload.latency_ms, 100); // 80 bucketized to 100
-      assert.strictEqual(payload.skill_version, '2026_05_14-search');
-      assert.strictEqual(payload.agent, 'claude');
+      assert.strictEqual(sendMock.mock.calls.length, 0, 'This fork must not send usage events');
     } finally {
       sendMock.mock.restore();
     }

@@ -17,14 +17,8 @@ import { getVersion } from '../version.ts';
 import { determineAgent } from './detect-agent.ts';
 
 function isTelemetryEnabled(): boolean {
-  const optOutSetting = process.env.DISABLE_TELEMETRY?.toLowerCase();
-  if (optOutSetting === '1' || optOutSetting === 'true') {
-    return false;
-  }
-  if (process.env.NODE_TEST_CONTEXT !== undefined) {
-    return false;
-  }
-  return true; // Enabled by default!
+  // Local-only fork: never start the Clearcut watchdog or send usage data.
+  return false;
 }
 
 export function detectOS(): OsType {
@@ -118,14 +112,6 @@ export class ClearcutLogger {
   async logToolCommand(latencyMs: number, success: boolean, commandType: CommandType): Promise<void> {
     if (!this.#watchdog) {
       return;
-    }
-
-    if (commandType == CommandType.INSTALL || commandType == CommandType.INSTALL_CHOOSE) {
-      console.warn(
-        "Google collects anonymous usage information to improve the reliability, relevance, and performance of the Modern Web Guidance tool. " +
-        "You can opt-out completely at any time by setting the DISABLE_TELEMETRY=1 environment variable in your shell profile. " +
-        "See https://github.com/GoogleChrome/modern-web-guidance#-telemetry--privacy for more details."
-      );
     }
 
     const payload: ChromeModernWebGuidance = {

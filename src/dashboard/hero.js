@@ -1,4 +1,4 @@
-import { getAccessToken, isSignInEnabled, escapeHtml, getAgentBadge, formatJobDate } from './utils.js';
+import { getAccessToken, escapeHtml, getAgentBadge, formatJobDate } from './utils.js';
 import { computeHeadlineInsights, hydrateMissingStats } from './insights.js';
 import { AGENT_FAMILIES } from './agents.js';
 import { isLocalServer } from './data-source.js';
@@ -118,11 +118,11 @@ function setStatus(kind) {
     el.hidden = false;
     // The sign-in CTA stays for an empty public copy when ?show_login is set so Googlers
     // can reach internal jobs, unless a token is already held (clicking it would sign out).
-    btn.hidden = kind === 'empty' || Boolean(getAccessToken()) || !isSignInEnabled();
+    btn.hidden = true;
     const messages = {
-        'auth': 'Results live in a private bucket. Sign in with Google to load the latest numbers.',
+        'auth': 'Results stay on this machine. Remote evaluation buckets are disabled.',
         'empty': 'No evaluation jobs were found for this data source yet.',
-        'public-empty': 'No published results yet. Googlers can sign in to see internal jobs.'
+        'public-empty': 'No published results yet. Evaluation files stay on this machine.'
     };
     text.textContent = messages[kind];
     announce(text.textContent);

@@ -2,7 +2,7 @@ import { getTrialStats, isInfraErrorTrial, isUnguidedLeakTrial, getEligibleTaskI
 import { A11Y_SUBCATEGORIES, A11Y_SUBCATEGORY_MAP, classifyAccessibilityCheck } from './a11y-classifier.js';
 import { extractJobSummary } from './summary-extractor.js';
 import { ApiClient, isAuthRejection } from './api.js';
-import { isLocalServer, reloadAsRemote } from './data-source.js';
+import { reloadAsRemote } from './data-source.js';
 import { DumbbellChart, hideDumbbellTooltip } from './dumbbell-chart.js';
 
 /**
@@ -475,14 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // View GCS Artifacts
     const gcsBtn = document.getElementById('view-gcs-artifacts-btn');
     if (gcsBtn) {
-        const testId = new URLSearchParams(window.location.search).get('testId');
-        if (api.source === 'remote' && testId) {
-            gcsBtn.hidden = false;
-            gcsBtn.onclick = () => window.open(`https://console.cloud.google.com/storage/browser/guidance-evals/${encodeURIComponent(testId)}?project=chrome-kiwi-air-force-dev`, '_blank');
-        }
+        gcsBtn.hidden = true;
     }
 
     // View Log Handler
@@ -1690,9 +1685,7 @@ async function fillAccordionDetails(container, taskKey, unguidedTrials, guidedTr
                  // A trial with a built app can be opened and diffed against its base app; see getResultInfo.
                  const hasApp = setupPath !== '';
                  const appUrl = !hasApp ? ''
-                     : (api.source === 'remote' && !isLocalServer())
-                     ? `https://storage.mtls.cloud.google.com/guidance-evals/${resultPath.split('?')[0]}`
-                      : api.getAbsoluteUrl ? api.getAbsoluteUrl(resultPath) : `${usedBasePath}/index.html`;
+                     : api.getAbsoluteUrl ? api.getAbsoluteUrl(resultPath) : `${usedBasePath}/index.html`;
 
                  const taskRuntime = getAgentRuntimeMs(trial) || null;
                  const tb = getTokenBreakdown(trial.tokenUsage);

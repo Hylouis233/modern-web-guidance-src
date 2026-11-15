@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { Storage } from "@google-cloud/storage";
 import { outDir, rootDir } from "../../core/paths.ts";
 import { Agents } from "../../harness/config.ts";
 
@@ -65,8 +64,6 @@ export interface LoadedDataset {
 }
 
 export const DEFAULT_WILD_VERSION = "v2";
-export const DEFAULT_RAG_EVALS_BUCKET = process.env.RAG_EVALS_BUCKET || "guidance-rag-evals";
-export const DEFAULT_GCP_PROJECT = process.env.RAG_EVALS_GCP_PROJECT || "chrome-kiwi-air-force-dev";
 export const DEFAULT_PUBLIC_DATA_DIR = path.join(rootDir, "src/rag/benchmarks/data");
 export const DEFAULT_WILD_CACHE_DIR = path.join(outDir, "benchmarks/wild");
 export const WILD_DATASET_FILES = ["manifest.json", "wild-queries.jsonl", "wild-qrels.jsonl"] as const;
@@ -407,35 +404,25 @@ export function filterDatasetBySplit(dataset: LoadedDataset, split: "dev" | "tes
 }
 
 /**
- * Loads the restricted Wild benchmark set (`wild-queries.jsonl` + `wild-qrels.jsonl`),
- * reading from the local gitignored cache (`out/benchmarks/wild/<version>/`) when valid
- * and downloading from `gs://guidance-rag-evals/<version>/` otherwise.
+ * Loads the restricted Wild benchmark set from the local cache
+ * (`out/benchmarks/wild/<version>/`). This fork does not download it.
  */
 export async function ensureWildDataset(
   version = DEFAULT_WILD_VERSION,
   options: { cacheDir?: string; bucketName?: string; projectId?: string; allowDownload?: boolean } = {}
 ): Promise<LoadedDataset> {
   const cacheDir = options.cacheDir ?? DEFAULT_WILD_CACHE_DIR;
-  const bucketName = options.bucketName ?? DEFAULT_RAG_EVALS_BUCKET;
-  const projectId = options.projectId ?? DEFAULT_GCP_PROJECT;
-  const allowDownload = options.allowDownload ?? true;
   const versionDir = path.join(cacheDir, version);
+  void options.bucketName;
+  void options.projectId;
+  void options.allowDownload;
 
   try {
     return verifyAndLoadWildCache(versionDir, version);
   } catch (err) {
-    if (!allowDownload) throw err;
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Wild dataset ${version} is not in the local cache (${versionDir}). Remote download is disabled. ${reason}`,
+    );
   }
-
-  fs.mkdirSync(versionDir, { recursive: true });
-  const storage = new Storage({ projectId });
-  const bucket = storage.bucket(bucketName);
-
-  for (const fileName of WILD_DATASET_FILES) {
-    const destPath = path.join(versionDir, fileName);
-    const [bytes] = await bucket.file(`${version}/${fileName}`).download();
-    fs.writeFileSync(destPath, bytes);
-  }
-
-  return verifyAndLoadWildCache(versionDir, version);
 }

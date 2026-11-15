@@ -1,21 +1,21 @@
 # Public evals: operator runbook
 
-How to change what the public dashboard shows, and how to try a change
-locally first. For the shape of the published data see [README.md](./README.md).
+How to change what a local dashboard can show, and how to try a change
+locally first. For the shape of the exported data see [README.md](./README.md).
+
+This fork writes `out/local-public-evals/`. It does not push a `gh-pages` branch, dispatch GitHub Pages, or read a cloud bucket.
 
 ## How it fits together
 
 ```
-src/harness/public/allowlist.json  ──►  pnpm public:publish  ──►  public-evals/  ──►  dashboard
-        (policy, in repo)               (reads the bucket)        (on gh-pages)      (reads files)
+src/harness/public/allowlist.json  ──►  pnpm public:publish  ──►  out/local-public-evals/  ──►  local dashboard
+        (policy, in repo)               (reads local suites)      (on this machine)            (reads files)
 ```
 
 - `allowlist.json` on `main` is the single source of truth. The dashboard never
-  reads it; nothing changes on the live site until `pnpm public:publish` runs.
-- `pnpm public:publish` is the only thing that pushes `public-evals/` to
-  `gh-pages`. The nightly run (`src/harness/nightly/run-guidance-nightly.sh`)
-  calls it after the agents finish when its checkout is a clean `main` in sync
-  with `origin/main`; run it by hand to apply an allowlist change sooner.
+  reads it; a local export changes only when `pnpm public:publish` runs.
+- `pnpm public:publish` writes `out/local-public-evals/`. It does not push.
+  The nightly run records that public evals stay on this machine.
 - `releasedModels: []` means **nothing publishes**. Every job is skipped as
   `unreleased-model` until a model is listed.
 - Every allowlist change goes through a pull request (`CODEOWNERS` enforces
@@ -35,41 +35,24 @@ request. After it merges, the next `pnpm public:publish` run applies it.
 | Restore a hidden job or guide | Remove the `exclude` entry or the override |
 | Keep the site small | Set `retention.maxSuitesPerAgent` / `retention.maxSuites` / `retention.maxAgeDays` |
 
-## Publishing
+## Exporting locally
 
-Run from the repo root on a checkout of `main`, with gcloud credentials for
-the bucket, a git identity (`user.name` / `user.email`, as the `gh-pages`
-commit needs an author; a CI runner will have to set one), and GitHub CLI (`gh`)
-authenticated (`gh auth login` with `workflow` scope) to dispatch the Actions
-Pages deployment:
+Run from the repo root. No cloud credentials and no GitHub token are required.
 
 ```bash
-pnpm public:publish               # build, push gh-pages, and dispatch deployment
-pnpm public:publish --dry-run     # build and report only
-pnpm public:publish --no-dispatch # push gh-pages without dispatching deploy
+pnpm public:publish               # write out/local-public-evals
+pnpm public:publish --dry-run     # report only
 ```
 
-Keep that checkout up to date with `origin/main`. A checkout whose output
-revision, field lists, or scrub patterns differ from the one that last
-published treats every job as changed and rebuilds all of them with its own rules.
-
 Usernames are scrubbed from two sources: the names the builder harvests from
-each job's own paths, plus your OS user. To add more (other operators whose
-runs are in the bucket), set `PUBLIC_EVALS_FORBIDDEN_TOKENS=alice,bob`; in CI,
-where the OS user is just `runner`, that variable is required.
-
-It checks out the published `public-evals/` from `gh-pages`, rebuilds it from
-the checked-out allowlist (incrementally, so an unchanged site costs one
-listing call), prints the per-job summary, and pushes. It refuses to push
-when `PUBLIC_EVALS_FORBIDDEN_TOKENS` is malformed, when `gh-pages` moved while
-it was building, or when any job `FAILED` (transient storage error): fix the
-cause and rerun. The publisher does not check which branch is checked out, so
-run it from `main` or the site will reflect a local allowlist.
+each job's own paths, plus your OS user. To add more, set
+`PUBLIC_EVALS_FORBIDDEN_TOKENS=alice,bob`. The export refuses to finish when
+that variable is malformed or when any job `FAILED`. It does not push.
 
 ## Trying a change locally
 
 Never test against the real allowlist file; use a scratch copy and a scratch
-output directory. Needs gcloud credentials for the bucket.
+output directory. Suites must already be on this machine.
 
 ```bash
 cp src/harness/public/allowlist.json /tmp/al.json
@@ -105,7 +88,7 @@ To see it in the dashboard, build into `out/` instead (`--out out`), run
 | `unchanged` | inputs identical to last build; nothing fetched |
 | `removed` | no longer selected (exclude, pattern, retention); directory deleted |
 | `skipped  <code>: <reason>` | policy rejection; remembered, retried only when the relevant input changes. Codes: `unreleased-model`, `non-public-agent`, `no-evals`, `leak`, `override`, `suite-id`. Under `CI` only the code is printed, since a reason may quote what was rejected |
-| `FAILED` | transient error (storage, parse); previously published copy kept and still listed; retried next run; exit code 1 (and `public:publish` does not push) |
+| `FAILED` | transient error (parse or local IO); exit code 1 and `public:publish` does not treat the export as success |
 
 `--force` rebuilds every selected job regardless of state.
 
@@ -125,5 +108,5 @@ To see it in the dashboard, build into `out/` instead (`--out out`), run
 | `src/harness/public/allowlist.schema.json` | its schema |
 | `src/harness/public/build.ts` | `pnpm public:build` |
 | `src/harness/public/publish-cli.ts` | `pnpm public:publish` |
-| `gh-pages:/public-evals/` | the published copy |
-| `out/public-evals/` | local build output (gitignored) |
+| `out/local-public-evals/` | local export (gitignored). Nothing is published. |
+| `out/public-evals/` | local build output from `build.ts` (gitignored) |

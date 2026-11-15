@@ -696,16 +696,15 @@ export function calculateChartData(results, optionsOrEligible = {}) {
     };
 }
 
-// Google Identity Services (OAuth) Integration
-const GOOGLE_CLIENT_ID = '169412140096-fk4rtf6iqk982d43385s1ilucrda91g2.apps.googleusercontent.com';
+// Local-only fork: Google sign-in and Cloud Storage tokens are not used.
 /** @type {string | null} */
-let accessToken = typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function' ? localStorage.getItem('gcs_access_token') : null;
+let accessToken = null;
 
 /**
  * @returns {string | null}
  */
 export function getAccessToken() {
-    return accessToken;
+    return null;
 }
 
 /**
@@ -716,57 +715,26 @@ export function getAccessToken() {
  * @param {URLSearchParams} [params]
  * @returns {boolean}
  */
-export function isSignInEnabled(params = new URLSearchParams(window.location.search)) {
-    if (!params.has('show_login')) return false;
-    const val = params.get('show_login');
-    return val !== 'false' && val !== '0';
+export function isSignInEnabled(_params = new URLSearchParams(window.location.search)) {
+    return false;
 }
 
 /**
  * @param {(() => void) | undefined} [onAuthSuccess]
  */
-export function initGoogleAuth(onAuthSuccess) {
-    const init = () => {
-        if (!window.google || !window.google.accounts) {
-            // Wait for script to load
-            setTimeout(init, 50);
-            return;
-        }
-
-        const authBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('auth-btn'));
-        if (authBtn) {
-            renderAuthButton(authBtn);
-        }
-
-        const tokenClient = window.google.accounts.oauth2.initTokenClient({
-            client_id: GOOGLE_CLIENT_ID,
-            scope: 'https://www.googleapis.com/auth/devstorage.read_only',
-            callback: (/** @type {any} */ response) => {
-                if (response.error !== undefined) {
-                    console.error('OAuth Error:', response);
-                    return;
-                }
-                accessToken = response.access_token;
-                localStorage.setItem('gcs_access_token', accessToken || '');
-                console.log('Successfully authenticated with Google.');
-                if (authBtn) {
-                    renderAuthButton(authBtn);
-                }
-                if (onAuthSuccess) onAuthSuccess();
-            },
-        });
-
-        if (authBtn) {
-            authBtn.addEventListener('click', () => {
-                if (accessToken) {
-                    signOut();
-                } else {
-                    tokenClient.requestAccessToken();
-                }
-            });
-        }
-    };
-    init();
+export function initGoogleAuth(_onAuthSuccess) {
+    accessToken = null;
+    try {
+        localStorage.removeItem('gcs_access_token');
+    } catch {
+        // localStorage is unavailable in some test and file contexts.
+    }
+    for (const id of ['auth-btn', 'hero-auth-btn']) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        el.hidden = true;
+        if (el instanceof HTMLElement) el.style.display = 'none';
+    }
 }
 
 /**
@@ -798,11 +766,9 @@ export function signOut() {
  * @returns {Promise<Response>}
  */
 export async function authenticatedFetch(url, options = {}) {
-    if (accessToken) {
-        /** @type {Record<string, string>} */
-        const headers = /** @type {any} */ (options.headers || {});
-        headers['Authorization'] = `Bearer ${accessToken}`;
-        options.headers = headers;
+    const target = String(url);
+    if (/googleapis\.com|googleusercontent\.com|accounts\.google\.com/i.test(target)) {
+        throw new Error('Remote Google requests are disabled. Evaluation files stay on this machine.');
     }
     const res = await fetch(url, options);
     // 401 means the token itself is dead, so forget it. A 403 (an account without access to

@@ -1,5 +1,5 @@
 import { authenticatedFetch, parseResultKey } from './utils.js';
-import { PUBLIC_ARTIFACTS_FILE, PUBLIC_EVALS_BASE, isLocalServer, resolveDataSource } from './data-source.js';
+import { PUBLIC_ARTIFACTS_FILE, PUBLIC_EVALS_BASE, resolveDataSource } from './data-source.js';
 
 /** @typedef {import('./data-source.js').DataSource} DataSource */
 
@@ -44,8 +44,7 @@ export class ApiClient {
      */
     constructor(source = resolveDataSource()) {
         /** @type {DataSource} */
-        this.source = source;
-        this.gcsPrefix = 'https://storage.googleapis.com/storage/v1/b/guidance-evals/o/';
+        this.source = source === 'remote' ? 'public' : source;
         /** @type {Map<string, Promise<Record<string, string> | null>>} */
         this._publicArtifacts = new Map();
     }
@@ -57,21 +56,7 @@ export class ApiClient {
      * @returns {string}
      */
     _formatUrl(path, isMetadataOnly = false) {
-        if (this.source === 'remote') {
-            if (path.startsWith('http')) return path;
-
-            // Clean local prefixes from logical GCS path, keeping only the cache-buster
-            const [fixedPath, query = ''] = path.split('?');
-            const buster = new URLSearchParams(query).get('t');
-
-            // Build the GCS JSON API endpoint
-            let url = `${this.gcsPrefix}${encodeURIComponent(fixedPath)}`;
-            if (!isMetadataOnly) {
-                url += '?alt=media';
-                if (buster) url += `&t=${encodeURIComponent(buster)}`;
-            }
-            return url;
-        } else if (this.source === 'public') {
+        if (this.source === 'public') {
             // Same-origin static files published by the builder; no server to pass ?source= to.
             return `${PUBLIC_EVALS_BASE}/${path.replace(/^\/+/, '')}`;
         } else {
@@ -499,13 +484,6 @@ export class ApiClient {
      * @returns {string}
      */
     getAbsoluteUrl(path) {
-        if (this.source === 'remote') {
-            let fixedPath = path.split('?')[0];
-            if (isLocalServer()) {
-                return `/gcs-proxy/${fixedPath}`;
-            }
-            return `${this.gcsPrefix}${encodeURIComponent(fixedPath)}?alt=media`;
-        }
         return this._formatUrl(path);
     }
 }

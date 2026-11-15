@@ -1,11 +1,9 @@
-import { getAccessToken } from './utils.js';
-
 /**
  * Where the dashboard reads eval data from.
  *
  *  - `local`:  the dev server (`gd dashboard`) reading `results/` on disk
  *  - `static`: a static export of local results (used by tests and previews)
- *  - `remote`: the private `gs://guidance-evals` bucket, which needs a Google sign-in
+ *  - `remote`: accepted for old links, then read as the local public copy. This fork never calls Google Cloud Storage.
  *  - `public`: the sanitized `public-evals/` directory served next to the dashboard
  *
  * The public view's safety does not depend on this module: `public-evals/`
@@ -25,9 +23,7 @@ const VALID_SOURCES = new Set(['local', 'remote', 'static', 'public']);
 
 /**
  * Picks the data source for this page load. An explicit `?source=` wins, except
- * that `remote` without a token reads the public copy (an anonymous visitor is
- * never sent to the bucket); on the dev server everything is local; otherwise a
- * signed-in Googler reads the private bucket and everyone else the public copy.
+ * that `remote` always reads the public copy. This fork has no remote bucket.
  *
  * @param {URLSearchParams} [params]
  * @returns {DataSource}
@@ -35,13 +31,13 @@ const VALID_SOURCES = new Set(['local', 'remote', 'static', 'public']);
 export function resolveDataSource(params = new URLSearchParams(window.location.search)) {
     const requested = params.get('source');
     if (requested && VALID_SOURCES.has(requested)) {
-        if (requested === 'remote' && !getAccessToken()) return 'public';
+        if (requested === 'remote') return 'public';
         return /** @type {DataSource} */ (requested);
     }
     if (isLocalServer()) {
         return 'local';
     }
-    return getAccessToken() ? 'remote' : 'public';
+    return 'public';
 }
 
 /** @returns {boolean} */
@@ -58,11 +54,7 @@ export function isLocalServer() {
  */
 export function reloadAsRemote() {
     const url = new URL(window.location.href);
-    if (isLocalServer()) {
-        url.searchParams.set('source', 'remote');
-    } else {
-        url.searchParams.delete('source');
-    }
+    url.searchParams.set('source', 'public');
     url.searchParams.delete('show_login');
     window.location.href = url.toString();
 }

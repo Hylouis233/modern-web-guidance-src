@@ -358,6 +358,9 @@ export async function fetchWithRetry(
   customFetch: typeof fetch,
   maxRetries = 8,
 ): Promise<Response> {
+  if (customFetch === fetch) {
+    throw new Error('Remote Gemini calls are disabled. This fork does not upload prompts or code.');
+  }
   let delayMs = 1500;
   for (let attempt = 1; ; attempt++) {
     try {

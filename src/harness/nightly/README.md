@@ -11,9 +11,7 @@ Related environment variables can be set at `<repo_root>/.env`.
 
 **Safety Note:** The nightly scripts implement a strict fail-fast mechanism. They will immediately abort if the repository has **any uncommitted changes** (including untracked files). This ensures no user progress is accidentally lost. The workflow executes entirely within isolated `nightly-*` branches created directly from `origin/main`. Please avoid using the `nightly-*` prefix for your own active local branches to prevent any potential conflicts.
 
-Evaluation results are uploaded automatically to the dashboard and can be viewed at `go/guidance-evals`. After all agents finish, the run also calls `pnpm public:publish` to mirror the new jobs to the public dashboard (see `src/harness/public/RUNBOOK.md`); its outcome is included in the summary email.
-
-**GitHub CLI requirement for public publishing:** When running on `main`, the post-run publishing step runs `pnpm public:publish` and dispatches the GitHub Pages deployment workflow. This requires `gh` CLI to be installed and authenticated (`gh auth login` with `workflow` scope). The script checks `gh auth status` at startup and will fail fast before running agents if authentication is missing.
+Evaluation results stay in the local `results/` directory. This fork does not upload them and does not send a summary email. After the agents finish, the run notes that public evals stay on this machine (see `src/harness/public/RUNBOOK.md`).
 
 ## 2. Generating the Cron Job Entry
 Please run all the following commands from within the `src/harness/nightly/` directory.
@@ -45,7 +43,7 @@ Or, to setup the cron job to run once a week on **Sunday night at 10:00 PM** (us
 ```
 
 To modify or remove the cron job later, run `crontab -e`.
-Nightly run outputs are logged to the `$HOME/.guidance_logs/` directory by default. You can check these log files if the cron job or manual run fails silently. The master run triggered by the cron job will automatically send an email notification (via `sendgmr`) with a summary of the results upon completion or failure.
+Nightly run outputs are logged to the `$HOME/.guidance_logs/` directory by default. You can check these log files if the cron job or manual run fails silently. The master run does not send email.
 
 ## 3. Manual Runs
 To kick-start a dedicated run manually for a specific agent, you can use:

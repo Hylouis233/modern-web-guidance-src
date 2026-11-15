@@ -39,6 +39,12 @@ export function originRemoteUrl(): string {
   return execFileSync('git', ['remote', 'get-url', REMOTE], { cwd: rootDir, encoding: 'utf8' }).trim();
 }
 
+function assertLocalRepo(repoUrl: string): void {
+  if (/^(https?:|git@|ssh:)/i.test(repoUrl) || /github\.com/i.test(repoUrl)) {
+    throw new Error(`Refusing to read or publish eval data on a remote (${repoUrl}). This fork keeps public-evals on the local disk only.`);
+  }
+}
+
 /** Where the shallow clone of `gh-pages` for `repoUrl` lives between runs (under the gitignored `out/`). */
 export function cloneDir(repoUrl: string): string {
   return path.join(defaultOutRoot, 'gh-pages-clone', repoUrl.replace(/[^\w.-]+/g, '_'));
@@ -70,6 +76,7 @@ export function checkoutPublished(outDir: string, repoUrl = originRemoteUrl()): 
 
 /** The remote `gh-pages` commit, or null if the branch does not exist. */
 export function remoteHead(repoUrl: string): string | null {
+  assertLocalRepo(repoUrl);
   const out = execFileSync('git', ['ls-remote', repoUrl, `refs/heads/${BRANCH}`], { encoding: 'utf8' }).trim();
   return out === '' ? null : out.split(/\s+/)[0];
 }

@@ -2,15 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { Storage } from "@google-cloud/storage";
-import { outDir, suitesDir } from "../../core/paths.ts";
+import { suitesDir } from "../../core/paths.ts";
 import { Agents } from "../../harness/config.ts";
 import { isEnoent } from "../../harness/lib/agent-shared.ts";
 import { extractRetrievedGuidesFromCommand } from "../../harness/lib/trajectory-normalizer.ts";
 import {
   createPrng,
   createQueryRecord,
-  DEFAULT_GCP_PROJECT,
   DEFAULT_PUBLIC_DATA_DIR,
   isRecord,
   normalizeQuery,
@@ -19,7 +17,6 @@ import {
 } from "./dataset.ts";
 import { fillMissingJudgmentsInFiles, loadCorpusForPooling } from "./judge-fill.ts";
 
-export const DEFAULT_EVALS_BUCKET = "guidance-evals";
 export const DEFAULT_PER_AGENT_LIMIT = 40;
 export const DEFAULT_HARNESS_SEED = 99;
 export const DEFAULT_MAX_RUNS = 30;
@@ -286,56 +283,6 @@ export function mineLocalSuitesDir(dir: string): MinedHarnessSearch[] {
   return allMined;
 }
 
-async function downloadNightlySummariesFromGcs(
-  cacheDir = path.join(outDir, "benchmarks/harness-cache"),
-  maxRuns = DEFAULT_MAX_RUNS
-): Promise<string> {
-  fs.mkdirSync(cacheDir, { recursive: true });
-  const storage = new Storage({ projectId: DEFAULT_GCP_PROJECT });
-  const bucket = storage.bucket(DEFAULT_EVALS_BUCKET);
-
-  const prefixes: string[] = [];
-  let pageToken: string | undefined;
-  do {
-    const [, nextQuery, apiResponse] = await bucket.getFiles({
-      delimiter: "/",
-      autoPaginate: false,
-      prefix: "nightly-",
-      pageToken,
-    });
-    if (isRecord(apiResponse) && Array.isArray(apiResponse.prefixes)) {
-      for (const p of apiResponse.prefixes) {
-        if (typeof p === "string") prefixes.push(p);
-      }
-    }
-    pageToken = isRecord(nextQuery) && typeof nextQuery.pageToken === "string" ? nextQuery.pageToken : undefined;
-  } while (pageToken);
-
-  const selectedSuites = prefixes
-    .map((p) => p.replace(/\/$/, ""))
-    .sort()
-    .slice(-maxRuns);
-
-  for (const suiteId of selectedSuites) {
-    const [files] = await bucket.getFiles({ prefix: `${suiteId}/` });
-    const summaryFiles = files.filter((f) => f.name.endsWith("/guided/trajectory_summary.json"));
-    for (const file of summaryFiles) {
-      const localPath = path.join(cacheDir, file.name);
-      try {
-        fs.statSync(localPath);
-        continue;
-      } catch (err) {
-        if (!isEnoent(err)) throw err;
-      }
-      fs.mkdirSync(path.dirname(localPath), { recursive: true });
-      const [bytes] = await file.download();
-      fs.writeFileSync(localPath, bytes);
-    }
-  }
-
-  return cacheDir;
-}
-
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { values } = parseArgs({
     options: {
@@ -344,7 +291,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       batch: { type: "boolean", default: false },
     },
   });
-  const sourceDir = values.gcs ? await downloadNightlySummariesFromGcs() : suitesDir;
+  if (values.gcs) {
+    console.error("Remote Google Cloud Storage download is disabled. Omit --gcs to mine suites already on disk.");
+    process.exit(1);
+  }
+  const sourceDir = suitesDir;
 
   const corpus = loadCorpusForPooling();
   const mined = mineLocalSuitesDir(sourceDir);
